@@ -9,6 +9,8 @@ COPY packages/contracts/package.json packages/contracts/package.json
 RUN pnpm install --frozen-lockfile
 COPY Frontend Frontend
 COPY packages packages
+ARG NEXT_PUBLIC_API_URL=https://api.aipixel.uz/api/v1
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm --filter @prime/admin build
 EXPOSE 3000
 CMD ["pnpm", "--filter", "@prime/admin", "start"]

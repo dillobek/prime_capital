@@ -9,6 +9,8 @@ COPY packages/contracts/package.json packages/contracts/package.json
 RUN pnpm install --frozen-lockfile
 COPY Webapp Webapp
 COPY packages packages
+ARG NEXT_PUBLIC_API_URL=https://api.aipixel.uz/api/v1
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm --filter @prime/webapp build
 EXPOSE 3001
 CMD ["pnpm", "--filter", "@prime/webapp", "start"]
