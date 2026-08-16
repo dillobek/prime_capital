@@ -7,5 +7,6 @@ import { PlatformService } from './platform.service';
   imports: [JwtModule.register({ secret: process.env.JWT_SECRET ?? 'prime-capital-local-secret', signOptions: { expiresIn: '7d' } })],
   controllers: [PlatformController],
   providers: [PlatformService],
+  exports: [PlatformService],
 })
 export class PlatformModule {}

@@ -34,6 +34,26 @@ export class PlatformService {
     if (!user || !await compare(dto.password, String(user.passwordHash))) throw new UnauthorizedException('Email yoki parol noto‘g‘ri');
     return this.session(user);
   }
+  registerTelegramUser(input: { telegramId: string; name: string; phone: string; username?: string }) {
+    const existing = this.users.find((item) => item.telegramId === input.telegramId);
+    if (existing) {
+      Object.assign(existing, input, { status: 'active' });
+      return this.profile(existing.id);
+    }
+    const user: RecordItem = {
+      id: id(),
+      ...input,
+      role: 'user',
+      status: 'active',
+      createdAt: now(),
+    };
+    this.users.push(user);
+    return this.profile(user.id);
+  }
+  findTelegramUser(telegramId: string) {
+    const user = this.users.find((item) => item.telegramId === telegramId);
+    return user ? this.profile(user.id) : undefined;
+  }
   private session(user: RecordItem) {
     const { passwordHash: _, ...safeUser } = user;
     return { accessToken: this.jwt.sign({ sub: user.id, role: user.role, email: user.email }), user: safeUser };
