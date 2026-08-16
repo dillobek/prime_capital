@@ -58,8 +58,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private async handle(message: TelegramMessage) {
     const chatId = message.chat.id;
     const telegramId = String(message.from?.id ?? chatId);
-    if (message.text === '/start') {
+    if (message.text?.startsWith('/start')) {
       if (this.platform.findTelegramUser(telegramId)) return this.openApp(chatId);
+      const current = this.states.get(chatId);
+      if (current?.step === 'phone') {
+        await this.askPhone(chatId, `F.I.O qabul qilindi: ${current.name}. Endi telefon raqamingizni yuboring:`);
+        return;
+      }
       this.states.set(chatId, { step: 'name' });
       await this.send(chatId, 'Assalomu alaykum! Prime Capital WebApp’ga kirish uchun F.I.O’ingizni kiriting:');
       return;
@@ -73,9 +78,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const name = message.text?.trim();
       if (!name || name.length < 3) return void await this.send(chatId, 'F.I.O’ni to‘liq kiriting:');
       this.states.set(chatId, { step: 'phone', name });
-      await this.send(chatId, 'Telefon raqamingizni yuboring:', {
-        keyboard: [[{ text: '📱 Telefon raqamni yuborish', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true,
-      });
+      await this.askPhone(chatId, 'Telefon raqamingizni yuboring:');
       return;
     }
     const phone = message.contact?.phone_number ?? message.text?.trim();
@@ -86,6 +89,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.platform.registerTelegramUser({ telegramId, name: state.name!, phone, username: message.from?.username });
     this.states.delete(chatId);
     await this.openApp(chatId, true);
+  }
+
+  private askPhone(chatId: number, text: string) {
+    return this.send(chatId, text, {
+      keyboard: [[{ text: '📱 Telefon raqamni yuborish', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true,
+    });
   }
 
   async broadcast(title: string, message: string) {
