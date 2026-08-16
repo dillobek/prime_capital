@@ -1,0 +1,11 @@
+node_modules
+.pnpm-store
+.next
+dist
+.env
+.env.local
+*.log
+coverage
+.DS_Store
+**/AGENTS.md
+**/CLAUDE.md

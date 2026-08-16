@@ -1,0 +1,13 @@
+{
+  "name": "prime-capital-platform",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @prime/admin --filter @prime/api --filter @prime/webapp dev",
+    "dev:admin": "pnpm --filter @prime/admin dev",
+    "dev:webapp": "pnpm --filter @prime/webapp dev",
+    "dev:api": "pnpm --filter @prime/api dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint"
+  }
+}

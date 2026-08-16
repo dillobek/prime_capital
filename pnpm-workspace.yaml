@@ -1,0 +1,7 @@
+packages:
+  - Backend
+  - Frontend
+  - Webapp
+  - packages/*
+allowBuilds:
+  unrs-resolver: false
