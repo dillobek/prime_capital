@@ -88,6 +88,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     await this.openApp(chatId, true);
   }
 
+  async broadcast(title: string, message: string) {
+    const users = this.platform.listUsers().filter((user) => user.telegramId);
+    const results = await Promise.allSettled(users.map((user) => this.send(Number(user.telegramId), `🔔 ${title}\n\n${message}`)));
+    return { sent: results.filter((item) => item.status === 'fulfilled').length, total: users.length };
+  }
+
   private async openApp(chatId: number, registered = false) {
     if (registered) await this.send(chatId, '✅ Ro‘yxatdan muvaffaqiyatli o‘tdingiz!', { remove_keyboard: true });
     return this.send(chatId, 'Prime Capital WebApp tayyor:', {

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import type { Balance } from '@prime/contracts';
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:4000/api/v1';
+const apiUrl = '/api';
 
 export function BalanceEditor({ initialBalances }: { initialBalances: Balance[] }) {
   const [values, setValues] = useState(initialBalances);

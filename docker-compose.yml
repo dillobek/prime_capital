@@ -9,6 +9,9 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_WEBAPP_URL: ${TELEGRAM_WEBAPP_URL:-https://web.aipixel.uz}
+      DATA_FILE: /app/data/platform.json
+    volumes:
+      - prime_data:/app/data
     ports: ["4000:4000"]
     restart: unless-stopped
   frontend:
@@ -35,6 +38,12 @@ services:
     ports: ["3001:3001"]
     depends_on: [backend]
     restart: unless-stopped
+  website:
+    build:
+      context: .
+      dockerfile: Website/Dockerfile
+    ports: ["3002:3002"]
+    restart: unless-stopped
   caddy:
     image: caddy:2-alpine
     ports:
@@ -51,3 +60,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  prime_data:

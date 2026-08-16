@@ -34,3 +34,16 @@ export class SupportDto {
   @IsString() message!: string;
 }
 export class StatusDto { @IsIn(['pending', 'approved', 'rejected', 'resolved']) status!: string; }
+export class UserBalancesDto {
+  @IsNumber() @Min(0) phpInvest!: number;
+  @IsNumber() @Min(0) primeCapital!: number;
+}
+export class ApplyPercentDto {
+  @IsIn(['prime-capital', 'php-invest']) product!: 'prime-capital' | 'php-invest';
+  @IsNumber() percent!: number;
+}
+export class ChangeCredentialsDto {
+  @IsEmail() email!: string;
+  @IsString() @MinLength(6) currentPassword!: string;
+  @IsString() @MinLength(6) newPassword!: string;
+}

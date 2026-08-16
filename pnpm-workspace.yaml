@@ -2,6 +2,7 @@ packages:
   - Backend
   - Frontend
   - Webapp
+  - Website
   - packages/*
 allowBuilds:
   unrs-resolver: false

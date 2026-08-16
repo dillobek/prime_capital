@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ContentDto, FinanceEntryDto, LoginDto, MoneyRequestDto, RegisterDto, StatusDto, SupportDto } from './platform.dto';
+import { ApplyPercentDto, ChangeCredentialsDto, ContentDto, FinanceEntryDto, LoginDto, MoneyRequestDto, RegisterDto, StatusDto, SupportDto, UserBalancesDto } from './platform.dto';
 import { PlatformService } from './platform.service';
 
 @Controller()
@@ -10,6 +10,9 @@ export class PlatformController {
   @Get('users') users() { return this.service.listUsers(); }
   @Get('users/:id') profile(@Param('id') id: string) { return this.service.profile(id); }
   @Patch('users/:id') updateProfile(@Param('id') id: string, @Body() dto: Record<string, unknown>) { return this.service.updateProfile(id, dto); }
+  @Patch('users/:id/balances') updateUserBalances(@Param('id') id: string, @Body() dto: UserBalancesDto) { return this.service.updateUserBalances(id, dto); }
+  @Post('users/apply-percent') applyPercent(@Body() dto: ApplyPercentDto) { return this.service.applyPercent(dto.product, dto.percent); }
+  @Post('settings/credentials') changeCredentials(@Body() dto: ChangeCredentialsDto) { return this.service.changeCredentials(dto); }
 
   @Get('banners') banners() { return this.service.list('banners'); }
   @Post('banners') createBanner(@Body() dto: ContentDto) { return this.service.createContent('banners', dto); }
