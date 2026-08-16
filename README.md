@@ -33,7 +33,7 @@ pnpm build
 - `https://web.aipixel.uz` → `webapp:3001`
 - `https://api.aipixel.uz` → `backend:4000`
 
-Cloudflare Zero Trust tunnelidagi Public Hostnames bo‘limida yuqoridagi service URL’larni kiriting. Server `.env` faylida `CLOUDFLARE_TUNNEL_TOKEN` bo‘lishi kerak.
+DNS `A` yozuvlari server IP manziliga yo‘naltiriladi. Docker ichidagi Caddy reverse proxy domenlarni tegishli servislarga yuboradi va TLS sertifikatlarini avtomatik oladi. Server firewallida `80/tcp`, `443/tcp` va `443/udp` portlari ochiq bo‘lishi kerak.
 
 ### GitHub → server auto-deploy
 

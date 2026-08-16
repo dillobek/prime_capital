@@ -33,8 +33,19 @@ services:
     ports: ["3001:3001"]
     depends_on: [backend]
     restart: unless-stopped
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on: [backend, frontend, webapp]
     restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
