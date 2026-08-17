@@ -13,7 +13,7 @@ type TelegramUpdate = { update_id: number; message?: TelegramMessage };
 export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TelegramService.name);
   private readonly token = process.env.TELEGRAM_BOT_TOKEN;
-  private readonly webAppUrl = process.env.TELEGRAM_WEBAPP_URL ?? 'https://web.aipixel.uz';
+  private readonly webAppUrl = process.env.TELEGRAM_WEBAPP_URL ?? 'https://web.primecapital.uz';
   private readonly states = new Map<number, { step: 'name' | 'phone'; name?: string }>();
   private offset = 0;
   private stopped = false;

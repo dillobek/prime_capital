@@ -7,6 +7,7 @@ Prime Capital platformasi bitta NestJS API orqali admin panel, mijoz webapp va F
 - `Backend/` — NestJS REST API, port `4000`
 - `Frontend/` — Next.js admin panel, port `3000`
 - `Webapp/` — Next.js mijoz webapp, port `3001`
+- `Website/` — Next.js rasmiy sayt (landing), port `3002`
 - `packages/contracts/` — umumiy TypeScript API turlari
 
 ## Local run
@@ -29,9 +30,10 @@ pnpm build
 
 ### Production domenlar
 
-- `https://aipixel.uz` → `frontend:3000`
-- `https://web.aipixel.uz` → `webapp:3001`
-- `https://api.aipixel.uz` → `backend:4000`
+- `https://primecapital.uz` (+ `www`) → `website:3002`
+- `https://web.primecapital.uz` → `webapp:3001`
+- `https://api.primecapital.uz` → `backend:4000`
+- `https://ser.primecapital.uz` → `frontend:3000` (admin panel)
 
 DNS `A` yozuvlari server IP manziliga yo‘naltiriladi. Docker ichidagi Caddy reverse proxy domenlarni tegishli servislarga yuboradi va TLS sertifikatlarini avtomatik oladi. Server firewallida `80/tcp`, `443/tcp` va `443/udp` portlari ochiq bo‘lishi kerak.
 

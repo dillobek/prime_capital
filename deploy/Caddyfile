@@ -1,14 +1,19 @@
-aipixel.uz, www.aipixel.uz {
+primecapital.uz, www.primecapital.uz {
   encode zstd gzip
-  reverse_proxy frontend:3000
+  reverse_proxy website:3002
 }
 
-web.aipixel.uz {
+web.primecapital.uz {
   encode zstd gzip
   reverse_proxy webapp:3001
 }
 
-api.aipixel.uz {
+api.primecapital.uz {
   encode zstd gzip
   reverse_proxy backend:4000
+}
+
+ser.primecapital.uz {
+  encode zstd gzip
+  reverse_proxy frontend:3000
 }

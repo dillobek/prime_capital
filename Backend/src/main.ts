@@ -6,7 +6,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api/v1');
   const localOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://127.0.0.1:3001'];
-  const productionOrigins = (process.env.CORS_ORIGINS ?? 'https://aipixel.uz,https://www.aipixel.uz,https://web.aipixel.uz,https://ser.aipixel.uz')
+  const productionOrigins = (process.env.CORS_ORIGINS ?? 'https://primecapital.uz,https://www.primecapital.uz,https://web.primecapital.uz,https://ser.primecapital.uz')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
