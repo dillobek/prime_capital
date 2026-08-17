@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { compare, hash } from 'bcryptjs';
+import { compare, hash, hashSync } from 'bcryptjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { ChangeCredentialsDto, ContentDto, FinanceEntryDto, LoginDto, MoneyRequestDto, RegisterDto, SupportDto, UserBalancesDto } from './platform.dto';
@@ -27,13 +27,27 @@ export class PlatformService {
   ];
   private support: RecordItem[] = [];
 
-  constructor(private readonly jwt: JwtService) { this.load(); }
+  constructor(private readonly jwt: JwtService) { this.load(); this.ensureAdminCredentials(); }
   private load() {
     if (!existsSync(this.dataFile)) return;
     try {
       const data = JSON.parse(readFileSync(this.dataFile, 'utf8')) as Record<string, RecordItem[]>;
       for (const key of ['users','banners','videos','notifications','investments','withdrawals','finance','support'] as const) if (Array.isArray(data[key])) this[key] = data[key];
     } catch { /* Keep safe seed data when storage is invalid. */ }
+  }
+  /** Keeps the admin login in sync with ADMIN_EMAIL/ADMIN_PASSWORD from .env on every boot, so rotating the password is just an env change + restart. */
+  private ensureAdminCredentials() {
+    const email = process.env.ADMIN_EMAIL;
+    const password = process.env.ADMIN_PASSWORD;
+    if (!email && !password) return;
+    let admin = this.users.find((item) => item.role === 'admin');
+    if (!admin) {
+      admin = { id: 'admin', name: 'Administrator', email: email ?? 'admin@primecapital.uz', phone: '', passwordHash: '', role: 'admin', phpInvest: 0, primeCapital: 0, status: 'active', createdAt: now() };
+      this.users.push(admin);
+    }
+    if (email) admin.email = email;
+    if (password) admin.passwordHash = hashSync(password, 10);
+    this.save();
   }
   private save() {
     mkdirSync(dirname(this.dataFile), { recursive: true });

@@ -48,3 +48,9 @@ Repository Settings → Secrets and variables → Actions bo‘limida quyidagi s
 - `DEPLOY_PATH` — masalan `/opt/prime-capital`
 
 Har bir `main` pushda workflow repo’ni serverga clone/update qiladi va `docker compose up -d --build` bajaradi. Birinchi server tayyorlash uchun `deploy/server-bootstrap.sh` ham mavjud.
+
+## Autentifikatsiya va ruxsatlar
+
+Barcha admin amallari (foydalanuvchilar, balanslar, banner/video/bildirishnoma boshqaruvi, investitsiya/pul yechish tasdiqlash, Telegram broadcast, sozlamalar) Backend’da JWT (`role: admin`) bilan himoyalangan (`Backend/src/auth`). Oddiy foydalanuvchi amallari (profil, investitsiya/pul yechish so‘rovi, finance tracker, support) ham JWT talab qiladi va `userId` har doim tokendan olinadi — client tomondan yuborilgan `userId`ga ishonilmaydi.
+
+Admin login/parolini `.env` dagi `ADMIN_EMAIL` va `ADMIN_PASSWORD` orqali boshqaring — backend har ishga tushishda admin foydalanuvchini shu qiymatlarga moslab yangilaydi (parolni almashtirish uchun shu ikki qiymatni o‘zgartirib, `docker compose up -d --build backend` bilan qayta ishga tushiring).

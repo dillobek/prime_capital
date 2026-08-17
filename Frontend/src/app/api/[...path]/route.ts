@@ -8,7 +8,10 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   const body = request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.text();
   const response = await fetch(target, {
     method: request.method,
-    headers: { 'content-type': request.headers.get('content-type') ?? 'application/json' },
+    headers: {
+      'content-type': request.headers.get('content-type') ?? 'application/json',
+      ...(request.headers.get('authorization') ? { authorization: request.headers.get('authorization')! } : {}),
+    },
     body,
     cache: 'no-store',
   });

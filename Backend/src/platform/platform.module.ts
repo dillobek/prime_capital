@@ -1,10 +1,9 @@
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
 import { PlatformController } from './platform.controller';
 import { PlatformService } from './platform.service';
 
+// JwtService comes from the global AuthModule (see app.module.ts) — no need to register JwtModule again here.
 @Module({
-  imports: [JwtModule.register({ secret: process.env.JWT_SECRET ?? 'prime-capital-local-secret', signOptions: { expiresIn: '7d' } })],
   controllers: [PlatformController],
   providers: [PlatformService],
   exports: [PlatformService],

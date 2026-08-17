@@ -9,6 +9,8 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_WEBAPP_URL: ${TELEGRAM_WEBAPP_URL:-https://web.primecapital.uz}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       DATA_FILE: /app/data/platform.json
     volumes:
       - prime_data:/app/data

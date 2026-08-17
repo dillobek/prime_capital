@@ -15,13 +15,14 @@ export class ContentDto {
   @IsOptional() @IsString() status?: string;
 }
 export class MoneyRequestDto {
-  @IsString() userId!: string;
+  // userId is always taken from the JWT (see PlatformController) — never trust a client-supplied one.
+  @IsOptional() @IsString() userId?: string;
   @IsIn(['prime-capital', 'php-invest']) product!: string;
   @IsNumber() @Min(1) amount!: number;
   @IsOptional() @IsString() note?: string;
 }
 export class FinanceEntryDto {
-  @IsString() userId!: string;
+  @IsOptional() @IsString() userId?: string;
   @IsIn(['income', 'expense']) type!: 'income' | 'expense';
   @IsString() category!: string;
   @IsNumber() @Min(0) amount!: number;
@@ -29,7 +30,7 @@ export class FinanceEntryDto {
   @IsOptional() @IsString() date?: string;
 }
 export class SupportDto {
-  @IsString() userId!: string;
+  @IsOptional() @IsString() userId?: string;
   @IsString() subject!: string;
   @IsString() message!: string;
 }
