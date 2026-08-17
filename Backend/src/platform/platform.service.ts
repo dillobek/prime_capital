@@ -30,15 +30,18 @@ export class PlatformService {
   private lastPercent: Record<'prime-capital' | 'php-invest', number> = { 'prime-capital': 0, 'php-invest': 0 };
   /** Optional admin-set headline amount for a product's dashboard card. When null, the card shows the real sum of every user's balance. */
   private balanceOverrides: Record<'prime-capital' | 'php-invest', number | null> = { 'prime-capital': null, 'php-invest': null };
+  /** Date the last percent was applied per product — so the balance card can show "12% — 17.08.2026" instead of an unlabeled number. */
+  private lastAppliedAt: Record<'prime-capital' | 'php-invest', string | null> = { 'prime-capital': null, 'php-invest': null };
 
   constructor(private readonly jwt: JwtService) { this.load(); this.ensureAdminCredentials(); }
   private load() {
     if (!existsSync(this.dataFile)) return;
     try {
-      const data = JSON.parse(readFileSync(this.dataFile, 'utf8')) as Record<string, RecordItem[]> & { lastPercent?: typeof this.lastPercent; balanceOverrides?: typeof this.balanceOverrides };
+      const data = JSON.parse(readFileSync(this.dataFile, 'utf8')) as Record<string, RecordItem[]> & { lastPercent?: typeof this.lastPercent; balanceOverrides?: typeof this.balanceOverrides; lastAppliedAt?: typeof this.lastAppliedAt };
       for (const key of ['users','banners','videos','notifications','investments','withdrawals','finance','support'] as const) if (Array.isArray(data[key])) this[key] = data[key];
       if (data.lastPercent) this.lastPercent = data.lastPercent;
       if (data.balanceOverrides) this.balanceOverrides = data.balanceOverrides;
+      if (data.lastAppliedAt) this.lastAppliedAt = data.lastAppliedAt;
     } catch { /* Keep safe seed data when storage is invalid. */ }
   }
   /** Keeps the admin login in sync with ADMIN_EMAIL/ADMIN_PASSWORD from .env on every boot, so rotating the password is just an env change + restart. */
@@ -57,7 +60,7 @@ export class PlatformService {
   }
   private save() {
     mkdirSync(dirname(this.dataFile), { recursive: true });
-    writeFileSync(this.dataFile, JSON.stringify({ users:this.users,banners:this.banners,videos:this.videos,notifications:this.notifications,investments:this.investments,withdrawals:this.withdrawals,finance:this.finance,support:this.support,lastPercent:this.lastPercent,balanceOverrides:this.balanceOverrides }, null, 2));
+    writeFileSync(this.dataFile, JSON.stringify({ users:this.users,banners:this.banners,videos:this.videos,notifications:this.notifications,investments:this.investments,withdrawals:this.withdrawals,finance:this.finance,support:this.support,lastPercent:this.lastPercent,balanceOverrides:this.balanceOverrides,lastAppliedAt:this.lastAppliedAt }, null, 2));
   }
   async register(dto: RegisterDto) {
     if (this.users.some((user) => user.email === dto.email)) throw new ConflictException('Email already exists');
@@ -116,24 +119,27 @@ export class PlatformService {
   profile(userId: string) { const user = this.users.find((item) => item.id === userId); if (!user) throw new NotFoundException(); const { passwordHash: _, ...safe } = user; return safe; }
   updateProfile(userId: string, dto: Record<string, unknown>) { const user = this.users.find((item) => item.id === userId); if (!user) throw new NotFoundException(); Object.assign(user, dto, { id: user.id, passwordHash: user.passwordHash }); this.save(); return this.profile(userId); }
   updateUserBalances(userId: string, dto: UserBalancesDto) { const user = this.users.find((item) => item.id === userId); if (!user) throw new NotFoundException(); Object.assign(user, dto); this.save(); return this.profile(userId); }
+  /** percent > 0 grows every user's balance for this product (e.g. 12 → 100$ becomes 112$); percent < 0 shrinks it (e.g. -12 → 100$ becomes 88$). */
   applyPercent(product: 'prime-capital'|'php-invest', percent: number) {
     const field = product === 'prime-capital' ? 'primeCapital' : 'phpInvest';
     for (const user of this.users) user[field] = Math.round(Number(user[field] ?? 0) * (1 + percent / 100) * 100) / 100;
     this.lastPercent[product] = percent;
+    this.lastAppliedAt[product] = now();
     this.save();
     return { product, percent, affectedUsers: this.users.length };
   }
-  /** Real headline balances: sum of every user's balance per product (or an admin override), with the last applied percent as the change figure. Backs both the public /balances endpoint and the admin dashboard — no more hardcoded demo numbers. */
+  /** Real headline balances: sum of every user's balance per product (or an admin override), with the last applied percent + date as the change figure. Backs both the public /balances endpoint and the admin dashboard — no more hardcoded demo numbers. */
   platformBalances() {
     const sum = (field: 'primeCapital' | 'phpInvest') => this.users.reduce((total, user) => total + Number(user[field] ?? 0), 0);
     return [
-      { id: 'prime-capital', name: 'Prime Capital', amount: this.balanceOverrides['prime-capital'] ?? sum('primeCapital'), monthlyChange: this.lastPercent['prime-capital'], updatedAt: now() },
-      { id: 'php-invest', name: 'PHP Invest', amount: this.balanceOverrides['php-invest'] ?? sum('phpInvest'), monthlyChange: this.lastPercent['php-invest'], updatedAt: now() },
+      { id: 'prime-capital', name: 'Prime Capital', amount: this.balanceOverrides['prime-capital'] ?? sum('primeCapital'), monthlyChange: this.lastPercent['prime-capital'], updatedAt: this.lastAppliedAt['prime-capital'] ?? now() },
+      { id: 'php-invest', name: 'PHP Invest', amount: this.balanceOverrides['php-invest'] ?? sum('phpInvest'), monthlyChange: this.lastPercent['php-invest'], updatedAt: this.lastAppliedAt['php-invest'] ?? now() },
     ];
   }
   setBalanceOverride(product: 'prime-capital' | 'php-invest', amount: number, monthlyChange: number) {
     this.balanceOverrides[product] = amount;
     this.lastPercent[product] = monthlyChange;
+    this.lastAppliedAt[product] = now();
     this.save();
     return this.platformBalances().find((item) => item.id === product);
   }

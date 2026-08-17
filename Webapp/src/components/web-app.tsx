@@ -10,6 +10,8 @@ type Profile={id:string;name:string;email:string;phone?:string;phpInvest:number;
 type FinanceEntry={id:string;type:'income'|'expense';category:string;amount:number;note?:string};
 type ContentItem={id:string;title:string;description?:string;url?:string;imageUrl?:string};
 const money=(value:number)=>new Intl.NumberFormat('uz-UZ').format(value);
+/** Prime Capital / PHP Invest balances are always denominated in USD, never so'm — property prices and finance-tracker entries stay in so'm. */
+const usd=(value:number)=>`$${new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(value)}`;
 /** The two account cards must always show THIS user's own balance, never a platform-wide total. `productBalances` only supplies the real "monthlyChange" percent last applied by admin. */
 function myBalances(profile:Profile,productBalances:Balance[]):Balance[]{
   const pct=(id:string)=>productBalances.find(b=>b.id===id)?.monthlyChange??0;
@@ -136,7 +138,7 @@ function HomeScreen({balances,properties,banners,onInvest,onWithdraw,onSupport,o
   return <>
  <section className="hero"><img src={hero?.imageUrl||'/residence.png'} alt={hero?.title||'Prime Capital zamonaviy turar joy majmuasi'}/><div><h1>{hero?.title||<>Prime joylarda<br/>kelajagingizni yarating</>}</h1><p>{hero?.description||'Ishonchli investitsiya, barqaror daromad.'}</p><a href={hero?.url||'#'}><button>Loyihalarni ko‘rish <span>→</span></button></a></div></section>
  {banners.length>1?<section className="banner-rail">{banners.slice(1).map(b=><a className="banner-card" href={b.url||'#'} key={b.id}>{b.imageUrl?<img src={b.imageUrl} alt={b.title}/>:null}<div><strong>{b.title}</strong>{b.description?<span>{b.description}</span>:null}</div></a>)}</section>:null}
- <section className="balances">{balances.slice(0,2).map((balance,index)=><article key={balance.id}><div className={`account-icon ${index?'cyan':''}`}>{index?<Landmark/>:<Building2/>}</div><div><h2>{balance.name}</h2><span>Hisob raqami</span></div><strong>{money(balance.amount)} <small>so‘m</small></strong><p>Oylik o‘zgarish <b className={balance.monthlyChange<0?'negative':''}>{balance.monthlyChange>0?'+':''}{balance.monthlyChange}% {balance.monthlyChange>0?'↗':'↘'}</b></p></article>)}</section>
+ <section className="balances">{balances.slice(0,2).map((balance,index)=><article key={balance.id}><div className={`account-icon ${index?'cyan':''}`}>{index?<Landmark/>:<Building2/>}</div><div><h2>{balance.name}</h2><span>Hisob raqami</span></div><strong>{usd(balance.amount)}</strong><p>Oylik o‘zgarish <b className={balance.monthlyChange<0?'negative':''}>{balance.monthlyChange>0?'+':''}{balance.monthlyChange}% {balance.monthlyChange>0?'↗':'↘'}</b></p></article>)}</section>
  <section className="quick">{quickItems.map(([Icon,label,onClick])=><button key={label} onClick={onClick}><span><Icon/></span>{label}</button>)}</section><Chart/>
  <section className="property-section"><div className="section-title"><h2>Yangi novostroykalar</h2><button>Barchasini ko‘rish →</button></div><div className="property-rail">{properties.slice(0,3).map((item)=><article key={item.id}><div className="property-image"><img src="/residence.png" alt=""/><b>Yangi</b></div><h3>{item.title}</h3><p><MapPin/> {item.location}</p><strong>{money(item.price)} so‘m / m²</strong></article>)}</div></section></>}
 function Chart(){return <section className="chart-card"><div className="section-title"><h2>Daromad dinamikasi</h2><select aria-label="Davr"><option>6 oy</option><option>1 yil</option></select></div><div className="chart-legend"><i/> PHP Invest <i/> Prime Capital</div><svg viewBox="0 0 700 250" role="img" aria-label="Daromad dinamikasi"><g className="lines"><line x1="30" y1="45" x2="680" y2="45"/><line x1="30" y1="105" x2="680" y2="105"/><line x1="30" y1="165" x2="680" y2="165"/><line x1="30" y1="225" x2="680" y2="225"/></g><polyline className="turquoise" points="30,120 150,100 270,85 390,95 510,70 680,42"/><polyline className="blue" points="30,190 150,178 270,165 390,140 510,110 680,75"/></svg></section>}
@@ -170,11 +172,11 @@ function FinanceScreen(){
 
 function ProfileScreen({profile,onSupport,onVideos,onLogout}:{profile:Profile;onSupport:()=>void;onVideos:()=>void;onLogout:()=>void}){
   const balances:Balance[]=[{id:'prime-capital',name:'Prime Capital',amount:profile.primeCapital,monthlyChange:0,updatedAt:new Date().toISOString()},{id:'php-invest',name:'PHP Invest',amount:profile.phpInvest,monthlyChange:0,updatedAt:new Date().toISOString()}];
-  const items:[string,(()=>void)?][]=[['Ma’lumotlarim'],['Support',onSupport],['Aktivlarim'],[`PHP Invest balansim: ${money(profile.phpInvest)} so‘m`],[`Prime Capital balansim: ${money(profile.primeCapital)} so‘m`],['Video darslar',onVideos]];
+  const items:[string,(()=>void)?][]=[['Ma’lumotlarim'],['Support',onSupport],['Aktivlarim'],[`PHP Invest balansim: ${usd(profile.phpInvest)}`],[`Prime Capital balansim: ${usd(profile.primeCapital)}`],['Video darslar',onVideos]];
   return <section className="page profile-page"><div className="profile-head">{profile.photoUrl?<img className="profile-photo" src={profile.photoUrl} alt={profile.name}/>:<CircleUserRound/>}<div><h1>{profile.name}</h1><p>{profile.email}</p></div></div>
     {items.map(([label,onClick])=><button key={label} onClick={onClick}>{label}<span>›</span></button>)}
     <button className="logout" onClick={onLogout}>Chiqish</button>
-    <small>Umumiy balans: {money(balances.reduce((s,b)=>s+b.amount,0))} so‘m</small></section>}
+    <small>Umumiy balans: {usd(balances.reduce((s,b)=>s+b.amount,0))}</small></section>}
 
 function MoneyModal({title,action,onClose}:{title:string;action:'investments'|'withdrawals';onClose:()=>void}){
   const [status,setStatus]=useState('');
@@ -192,7 +194,7 @@ function MoneyModal({title,action,onClose}:{title:string;action:'investments'|'w
     <div className="modal-head"><h2>{title}</h2><button onClick={onClose}><X size={18}/></button></div>
     {done?<p className="modal-success">{status}</p>:<form onSubmit={submit}>
       <label>Yo‘nalish<select name="product" defaultValue="prime-capital"><option value="prime-capital">Prime Capital</option><option value="php-invest">PHP Invest</option></select></label>
-      <label>Summa (so‘m)<input name="amount" type="number" required min={1}/></label>
+      <label>Summa ($)<input name="amount" type="number" required min={1}/></label>
       <label>Izoh (ixtiyoriy)<input name="note"/></label>
       <button className="primary" type="submit">Yuborish</button>
       {status?<small>{status}</small>:null}

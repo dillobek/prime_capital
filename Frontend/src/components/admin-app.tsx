@@ -16,6 +16,8 @@ type Item=Record<string,unknown>&{id:string;title?:string;description?:string;na
 type AdminUser={id:string;name:string;email:string};
 const menu:[Section,string,typeof Gauge][]=[['dashboard','Dashboard',Gauge],['balances','Balanslar',WalletCards],['properties','Kvartiralar',Building2],['banners','Bannerlar',Image],['videos','Video darslar',BookOpen],['notifications','Bildirishnomalar',Bell],['requests','So‘rovlar',Banknote],['support','Support',Headphones],['users','Foydalanuvchilar',UsersRound],['settings','Sozlamalar',Settings]];
 const money=(n:number)=>new Intl.NumberFormat('uz-UZ',{maximumFractionDigits:2}).format(n);
+/** Prime Capital / PHP Invest balances are always denominated in USD, never so'm — matches how the Users panel already labels them. */
+const usd=(n:number)=>`$${new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(n)}`;
 function getToken(){return typeof window==='undefined'?null:localStorage.getItem(TOKEN_KEY)}
 function setToken(token:string){localStorage.setItem(TOKEN_KEY,token)}
 function clearToken(){localStorage.removeItem(TOKEN_KEY)}
@@ -68,8 +70,30 @@ function Login({onSuccess}:{onSuccess:(user:AdminUser)=>void}){
     {status?<small className="save-error">{status}</small>:null}
   </form></div>
 }
-function Dashboard({data}:{data:DashboardSummary}){const cards=[['Jami foydalanuvchilar',data.users.toLocaleString('uz-UZ'),'+8.4%'],['Prime Capital',money(data.balances[0].amount),`${data.balances[0].monthlyChange}%`],['PHP Invest',money(data.balances[1].amount),`${data.balances[1].monthlyChange}%`],['Faol e’lonlar',String(data.activeListings),'+12.1%']];return <><section className="stats">{cards.map(([l,v,c],i)=><article key={l}><div className={`stat-icon c${i}`}>{i+1}</div><div><span>{l}</span><strong>{v}</strong><small>{c} <em>o‘tgan oyga nisbatan</em></small></div></article>)}</section><div className="dashboard-grid"><BalanceChart/><BalanceEditor initialBalances={data.balances}/><PropertyTable items={data.recentProperties}/><section className="panel activity"><h2>So‘nggi faoliyat</h2><div className="empty-state">Boshqaruv amallari shu yerda ko‘rinadi.</div></section></div></>}
-function Balances({data}:{data:DashboardSummary}){const [product,setProduct]=useState('prime-capital'),[percent,setPercent]=useState(10),[status,setStatus]=useState('');async function apply(e:FormEvent){e.preventDefault();setStatus('Yuborilmoqda...');try{const r=await request('/users/apply-percent',{method:'POST',body:JSON.stringify({product,percent})});setStatus(`${r.affectedUsers} foydalanuvchiga ${percent}% qo‘llandi`)}catch{setStatus('Xatolik yuz berdi')}}return <div className="admin-grid"><BalanceEditor initialBalances={data.balances}/><section className="panel form-panel"><h2>Balanslarga foiz qo‘shish</h2><p>Barcha foydalanuvchilarning tanlangan balansiga foiz qo‘llanadi.</p><form onSubmit={apply}><label>Yo‘nalish<select value={product} onChange={e=>setProduct(e.target.value)}><option value="prime-capital">Prime Capital</option><option value="php-invest">PHP Invest</option></select></label><label>Foiz<input type="number" step="0.1" value={percent} onChange={e=>setPercent(+e.target.value)}/></label><button className="primary">Foizni qo‘llash</button><small>{status}</small></form></section></div>}
+function Dashboard({data}:{data:DashboardSummary}){const cards=[['Jami foydalanuvchilar',data.users.toLocaleString('uz-UZ'),'+8.4%'],['Prime Capital',usd(data.balances[0].amount),`${data.balances[0].monthlyChange>0?'+':''}${data.balances[0].monthlyChange}%`],['PHP Invest',usd(data.balances[1].amount),`${data.balances[1].monthlyChange>0?'+':''}${data.balances[1].monthlyChange}%`],['Faol e’lonlar',String(data.activeListings),'+12.1%']];return <><section className="stats">{cards.map(([l,v,c],i)=><article key={l}><div className={`stat-icon c${i}`}>{i+1}</div><div><span>{l}</span><strong>{v}</strong><small className={String(c).startsWith('-')?'down':''}>{c} <em>oxirgi o‘zgarish</em></small></div></article>)}</section><div className="dashboard-grid"><BalanceChart/><BalanceEditor initialBalances={data.balances}/><PropertyTable items={data.recentProperties}/><section className="panel activity"><h2>So‘nggi faoliyat</h2><div className="empty-state">Boshqaruv amallari shu yerda ko‘rinadi.</div></section></div></>}
+function Balances({data}:{data:DashboardSummary}){
+  const [product,setProduct]=useState<'prime-capital'|'php-invest'>('prime-capital');
+  const [direction,setDirection]=useState<'up'|'down'>('up');
+  const [percent,setPercent]=useState(10);
+  const [status,setStatus]=useState('');
+  async function apply(e:FormEvent){
+    e.preventDefault();
+    const signed=direction==='down'?-Math.abs(percent):Math.abs(percent);
+    setStatus('Yuborilmoqda...');
+    try{
+      const r=await request('/users/apply-percent',{method:'POST',body:JSON.stringify({product,percent:signed})});
+      setStatus(`${r.affectedUsers} foydalanuvchiga ${signed>0?'+':''}${signed}% qo‘llandi — ${new Date().toLocaleDateString('uz-UZ')}`);
+    }catch{setStatus('Xatolik yuz berdi')}
+  }
+  const productName=product==='prime-capital'?'Prime Capital':'PHP Invest';
+  return <div className="admin-grid"><BalanceEditor initialBalances={data.balances}/><section className="panel form-panel"><h2>Balanslarga foiz qo‘shish</h2><p>Tanlangan mahsulot bo‘yicha barcha foydalanuvchilarning balansi foizga ko‘tariladi yoki tushiriladi. Masalan: 100$ balansga 12% ko‘tarildi qo‘llansa — 112$ bo‘ladi.</p><form onSubmit={apply}>
+    <label>Mahsulot<select value={product} onChange={e=>setProduct(e.target.value as 'prime-capital'|'php-invest')}><option value="prime-capital">Prime Capital</option><option value="php-invest">PHP Invest</option></select></label>
+    <label>O‘zgarish turi<select value={direction} onChange={e=>setDirection(e.target.value as 'up'|'down')}><option value="up">Ko‘tarildi (+)</option><option value="down">Tushdi (−)</option></select></label>
+    <label>Foiz (%)<input type="number" step="0.1" min={0} value={percent} onChange={e=>setPercent(+e.target.value)}/></label>
+    <button className="primary">{productName} balansini {direction==='up'?'oshirish':'kamaytirish'}</button>
+    <small>{status}</small>
+  </form></section></div>;
+}
 function ContentManager({type,title,image=false}:{type:'banners'|'videos';title:string;image?:boolean}){const [list,setList]=useState<Item[]>([]),[status,setStatus]=useState('');useEffect(()=>{request(`/${type}`).then(setList).catch(()=>setList([]))},[type]);async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const form=e.currentTarget,f=new FormData(form),body={title:f.get('title'),description:f.get('description'),url:f.get('url'),imageUrl:f.get('imageUrl'),status:'active'};try{const created=await request(`/${type}`,{method:'POST',body:JSON.stringify(body)});setList(x=>[created,...x]);form.reset();setStatus('Saqlandi')}catch{setStatus('Saqlashda xatolik')}}async function remove(id:string){await request(`/${type}/${id}`,{method:'DELETE'});setList(x=>x.filter(i=>i.id!==id))}return <div className="admin-grid"><section className="panel form-panel"><h2>Yangi {title.toLowerCase()} qo‘shish</h2><form onSubmit={submit}><label>Sarlavha<input name="title" required/></label><label>Tavsif<textarea name="description" rows={4}/></label>{image?<label>Rasm URL<input name="imageUrl" type="url" placeholder="https://..."/></label>:null}<label>{image?'Yo‘naltirish URL':'YouTube URL'}<input name="url" type="url" required placeholder="https://youtube.com/..."/></label><button className="primary"><Plus size={17}/> Qo‘shish</button><small>{status}</small></form></section><section className="panel list-panel"><h2>{title} ro‘yxati</h2>{list.map(i=><article className="content-row" key={i.id}><div><strong>{i.title}</strong><p>{i.description as string}</p><a href={i.url as string} target="_blank">{i.url as string}</a></div><button onClick={()=>remove(i.id)}>O‘chirish</button></article>)}{!list.length?<div className="empty-state">Hozircha ma’lumot yo‘q.</div>:null}</section></div>}
 function PropertiesManager(){
   const [list,setList]=useState<PropertyListing[]>([]),[status,setStatus]=useState('');
