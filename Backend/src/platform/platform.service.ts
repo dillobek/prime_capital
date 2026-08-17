@@ -6,6 +6,10 @@ import { dirname } from 'node:path';
 import { ChangeCredentialsDto, ContentDto, FinanceEntryDto, LoginDto, MoneyRequestDto, RegisterDto, SupportDto, UserBalancesDto } from './platform.dto';
 
 type RecordItem = Record<string, unknown> & { id: string; createdAt: string; status?: string };
+type Product = 'prime-capital' | 'php-invest';
+type ProductPercent = Record<Product, number>;
+type ProductOverride = Record<Product, number | null>;
+type ProductDate = Record<Product, string | null>;
 const id = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 const now = () => new Date().toISOString();
 
@@ -27,17 +31,17 @@ export class PlatformService {
   ];
   private support: RecordItem[] = [];
   /** Last percent an admin applied to each product via applyPercent() — shown as the "monthly change" on real balance cards, never a fake number. */
-  private lastPercent: Record<'prime-capital' | 'php-invest', number> = { 'prime-capital': 0, 'php-invest': 0 };
+  private lastPercent: ProductPercent = { 'prime-capital': 0, 'php-invest': 0 };
   /** Optional admin-set headline amount for a product's dashboard card. When null, the card shows the real sum of every user's balance. */
-  private balanceOverrides: Record<'prime-capital' | 'php-invest', number | null> = { 'prime-capital': null, 'php-invest': null };
+  private balanceOverrides: ProductOverride = { 'prime-capital': null, 'php-invest': null };
   /** Date the last percent was applied per product — so the balance card can show "12% — 17.08.2026" instead of an unlabeled number. */
-  private lastAppliedAt: Record<'prime-capital' | 'php-invest', string | null> = { 'prime-capital': null, 'php-invest': null };
+  private lastAppliedAt: ProductDate = { 'prime-capital': null, 'php-invest': null };
 
   constructor(private readonly jwt: JwtService) { this.load(); this.ensureAdminCredentials(); }
   private load() {
     if (!existsSync(this.dataFile)) return;
     try {
-      const data = JSON.parse(readFileSync(this.dataFile, 'utf8')) as Record<string, RecordItem[]> & { lastPercent?: typeof this.lastPercent; balanceOverrides?: typeof this.balanceOverrides; lastAppliedAt?: typeof this.lastAppliedAt };
+      const data = JSON.parse(readFileSync(this.dataFile, 'utf8')) as Record<string, RecordItem[]> & { lastPercent?: ProductPercent; balanceOverrides?: ProductOverride; lastAppliedAt?: ProductDate };
       for (const key of ['users','banners','videos','notifications','investments','withdrawals','finance','support'] as const) if (Array.isArray(data[key])) this[key] = data[key];
       if (data.lastPercent) this.lastPercent = data.lastPercent;
       if (data.balanceOverrides) this.balanceOverrides = data.balanceOverrides;
@@ -120,7 +124,7 @@ export class PlatformService {
   updateProfile(userId: string, dto: Record<string, unknown>) { const user = this.users.find((item) => item.id === userId); if (!user) throw new NotFoundException(); Object.assign(user, dto, { id: user.id, passwordHash: user.passwordHash }); this.save(); return this.profile(userId); }
   updateUserBalances(userId: string, dto: UserBalancesDto) { const user = this.users.find((item) => item.id === userId); if (!user) throw new NotFoundException(); Object.assign(user, dto); this.save(); return this.profile(userId); }
   /** percent > 0 grows every user's balance for this product (e.g. 12 → 100$ becomes 112$); percent < 0 shrinks it (e.g. -12 → 100$ becomes 88$). */
-  applyPercent(product: 'prime-capital'|'php-invest', percent: number) {
+  applyPercent(product: Product, percent: number) {
     const field = product === 'prime-capital' ? 'primeCapital' : 'phpInvest';
     for (const user of this.users) user[field] = Math.round(Number(user[field] ?? 0) * (1 + percent / 100) * 100) / 100;
     this.lastPercent[product] = percent;
@@ -129,14 +133,14 @@ export class PlatformService {
     return { product, percent, affectedUsers: this.users.length };
   }
   /** Real headline balances: sum of every user's balance per product (or an admin override), with the last applied percent + date as the change figure. Backs both the public /balances endpoint and the admin dashboard — no more hardcoded demo numbers. */
-  platformBalances() {
+  platformBalances(): { id: Product; name: string; amount: number; monthlyChange: number; updatedAt: string }[] {
     const sum = (field: 'primeCapital' | 'phpInvest') => this.users.reduce((total, user) => total + Number(user[field] ?? 0), 0);
     return [
       { id: 'prime-capital', name: 'Prime Capital', amount: this.balanceOverrides['prime-capital'] ?? sum('primeCapital'), monthlyChange: this.lastPercent['prime-capital'], updatedAt: this.lastAppliedAt['prime-capital'] ?? now() },
       { id: 'php-invest', name: 'PHP Invest', amount: this.balanceOverrides['php-invest'] ?? sum('phpInvest'), monthlyChange: this.lastPercent['php-invest'], updatedAt: this.lastAppliedAt['php-invest'] ?? now() },
     ];
   }
-  setBalanceOverride(product: 'prime-capital' | 'php-invest', amount: number, monthlyChange: number) {
+  setBalanceOverride(product: Product, amount: number, monthlyChange: number) {
     this.balanceOverrides[product] = amount;
     this.lastPercent[product] = monthlyChange;
     this.lastAppliedAt[product] = now();
