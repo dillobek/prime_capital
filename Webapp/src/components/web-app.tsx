@@ -10,6 +10,14 @@ type Profile={id:string;name:string;email:string;phone?:string;phpInvest:number;
 type FinanceEntry={id:string;type:'income'|'expense';category:string;amount:number;note?:string};
 type ContentItem={id:string;title:string;description?:string;url?:string;imageUrl?:string};
 const money=(value:number)=>new Intl.NumberFormat('uz-UZ').format(value);
+/** The two account cards must always show THIS user's own balance, never a platform-wide total. `productBalances` only supplies the real "monthlyChange" percent last applied by admin. */
+function myBalances(profile:Profile,productBalances:Balance[]):Balance[]{
+  const pct=(id:string)=>productBalances.find(b=>b.id===id)?.monthlyChange??0;
+  return [
+    {id:'prime-capital',name:'Prime Capital',amount:profile.primeCapital,monthlyChange:pct('prime-capital'),updatedAt:new Date().toISOString()},
+    {id:'php-invest',name:'PHP Invest',amount:profile.phpInvest,monthlyChange:pct('php-invest'),updatedAt:new Date().toISOString()},
+  ];
+}
 const navItems = [[Home,'home','Home'],[Building2,'apartments','Kvartiralar'],[CircleDollarSign,'finance','Finance'],[CircleUserRound,'profile','Profil']] as const;
 function getToken(){return typeof window==='undefined'?null:localStorage.getItem(TOKEN_KEY)}
 function setToken(token:string){localStorage.setItem(TOKEN_KEY,token)}
@@ -59,7 +67,7 @@ export function WebApp({balances,properties,banners,videos}:{balances:Balance[];
   return <div className="webapp"><header className="top"><div className="logo"><span className="logo-mark"><i/><i/><i/></span><span><b>PRIME</b><small>CAPITAL</small></span></div><button aria-label="Bildirishnomalar" onClick={()=>setShowNotifications(x=>!x)}><Bell/>{notifications.length?<em/>:null}</button></header>
   {showNotifications?<NotificationsPanel items={notifications} onClose={()=>setShowNotifications(false)}/>:null}
   <main>
-    {tab==='home'?<HomeScreen balances={balances} properties={properties} banners={banners} onInvest={()=>setModal('invest')} onWithdraw={()=>setModal('withdraw')} onSupport={()=>setModal('support')} onVideos={()=>setModal('videos')}/>:null}
+    {tab==='home'?<HomeScreen balances={myBalances(profile,balances)} properties={properties} banners={banners} onInvest={()=>setModal('invest')} onWithdraw={()=>setModal('withdraw')} onSupport={()=>setModal('support')} onVideos={()=>setModal('videos')}/>:null}
     {tab==='apartments'?<ApartmentsScreen properties={properties}/>:null}
     {tab==='finance'?<FinanceScreen/>:null}
     {tab==='profile'?<ProfileScreen profile={profile} onSupport={()=>setModal('support')} onVideos={()=>setModal('videos')} onLogout={()=>{clearToken();setProfile(null)}}/>:null}

@@ -26,13 +26,19 @@ export class PlatformService {
     { id: 'f2', userId: 'demo-user', type: 'expense', category: 'Uy', amount: 3200000, note: 'Ijara', date: now(), createdAt: now() },
   ];
   private support: RecordItem[] = [];
+  /** Last percent an admin applied to each product via applyPercent() — shown as the "monthly change" on real balance cards, never a fake number. */
+  private lastPercent: Record<'prime-capital' | 'php-invest', number> = { 'prime-capital': 0, 'php-invest': 0 };
+  /** Optional admin-set headline amount for a product's dashboard card. When null, the card shows the real sum of every user's balance. */
+  private balanceOverrides: Record<'prime-capital' | 'php-invest', number | null> = { 'prime-capital': null, 'php-invest': null };
 
   constructor(private readonly jwt: JwtService) { this.load(); this.ensureAdminCredentials(); }
   private load() {
     if (!existsSync(this.dataFile)) return;
     try {
-      const data = JSON.parse(readFileSync(this.dataFile, 'utf8')) as Record<string, RecordItem[]>;
+      const data = JSON.parse(readFileSync(this.dataFile, 'utf8')) as Record<string, RecordItem[]> & { lastPercent?: typeof this.lastPercent; balanceOverrides?: typeof this.balanceOverrides };
       for (const key of ['users','banners','videos','notifications','investments','withdrawals','finance','support'] as const) if (Array.isArray(data[key])) this[key] = data[key];
+      if (data.lastPercent) this.lastPercent = data.lastPercent;
+      if (data.balanceOverrides) this.balanceOverrides = data.balanceOverrides;
     } catch { /* Keep safe seed data when storage is invalid. */ }
   }
   /** Keeps the admin login in sync with ADMIN_EMAIL/ADMIN_PASSWORD from .env on every boot, so rotating the password is just an env change + restart. */
@@ -51,7 +57,7 @@ export class PlatformService {
   }
   private save() {
     mkdirSync(dirname(this.dataFile), { recursive: true });
-    writeFileSync(this.dataFile, JSON.stringify({ users:this.users,banners:this.banners,videos:this.videos,notifications:this.notifications,investments:this.investments,withdrawals:this.withdrawals,finance:this.finance,support:this.support }, null, 2));
+    writeFileSync(this.dataFile, JSON.stringify({ users:this.users,banners:this.banners,videos:this.videos,notifications:this.notifications,investments:this.investments,withdrawals:this.withdrawals,finance:this.finance,support:this.support,lastPercent:this.lastPercent,balanceOverrides:this.balanceOverrides }, null, 2));
   }
   async register(dto: RegisterDto) {
     if (this.users.some((user) => user.email === dto.email)) throw new ConflictException('Email already exists');
@@ -113,8 +119,23 @@ export class PlatformService {
   applyPercent(product: 'prime-capital'|'php-invest', percent: number) {
     const field = product === 'prime-capital' ? 'primeCapital' : 'phpInvest';
     for (const user of this.users) user[field] = Math.round(Number(user[field] ?? 0) * (1 + percent / 100) * 100) / 100;
+    this.lastPercent[product] = percent;
     this.save();
     return { product, percent, affectedUsers: this.users.length };
+  }
+  /** Real headline balances: sum of every user's balance per product (or an admin override), with the last applied percent as the change figure. Backs both the public /balances endpoint and the admin dashboard — no more hardcoded demo numbers. */
+  platformBalances() {
+    const sum = (field: 'primeCapital' | 'phpInvest') => this.users.reduce((total, user) => total + Number(user[field] ?? 0), 0);
+    return [
+      { id: 'prime-capital', name: 'Prime Capital', amount: this.balanceOverrides['prime-capital'] ?? sum('primeCapital'), monthlyChange: this.lastPercent['prime-capital'], updatedAt: now() },
+      { id: 'php-invest', name: 'PHP Invest', amount: this.balanceOverrides['php-invest'] ?? sum('phpInvest'), monthlyChange: this.lastPercent['php-invest'], updatedAt: now() },
+    ];
+  }
+  setBalanceOverride(product: 'prime-capital' | 'php-invest', amount: number, monthlyChange: number) {
+    this.balanceOverrides[product] = amount;
+    this.lastPercent[product] = monthlyChange;
+    this.save();
+    return this.platformBalances().find((item) => item.id === product);
   }
   async changeCredentials(dto: ChangeCredentialsDto) {
     const admin = this.users.find((item) => item.role === 'admin');

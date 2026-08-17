@@ -1,19 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Balance, InvestmentProduct } from '@prime/contracts';
+import { PlatformService } from '../platform/platform.service';
 
+/** Thin wrapper around PlatformService's real, per-user-derived balances — no more hardcoded demo numbers. */
 @Injectable()
 export class BalancesService {
-  private readonly balances: Balance[] = [
-    { id: 'prime-capital', name: 'Prime Capital', amount: 2345678900, monthlyChange: 6.7, updatedAt: new Date().toISOString() },
-    { id: 'php-invest', name: 'PHP Invest', amount: 1234567800, monthlyChange: -3.2, updatedAt: new Date().toISOString() },
-  ];
+  constructor(private readonly platform: PlatformService) {}
 
-  findAll() { return this.balances; }
+  findAll(): Balance[] { return this.platform.platformBalances(); }
 
   update(id: InvestmentProduct, input: Pick<Balance, 'amount' | 'monthlyChange'>) {
-    const balance = this.balances.find((item) => item.id === id);
-    if (!balance) throw new NotFoundException('Balans topilmadi');
-    Object.assign(balance, input, { updatedAt: new Date().toISOString() });
-    return balance;
+    const updated = this.platform.setBalanceOverride(id, input.amount, input.monthlyChange);
+    if (!updated) throw new NotFoundException('Balans topilmadi');
+    return updated;
   }
 }
