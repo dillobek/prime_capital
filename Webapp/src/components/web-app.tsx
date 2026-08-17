@@ -8,6 +8,7 @@ const TOKEN_KEY = 'prime_webapp_token';
 type Tab='home'|'apartments'|'finance'|'profile';
 type Profile={id:string;name:string;email:string;phone?:string;phpInvest:number;primeCapital:number};
 type FinanceEntry={id:string;type:'income'|'expense';category:string;amount:number;note?:string};
+type ContentItem={id:string;title:string;description?:string;url?:string;imageUrl?:string};
 const money=(value:number)=>new Intl.NumberFormat('uz-UZ').format(value);
 const navItems = [[Home,'home','Home'],[Building2,'apartments','Kvartiralar'],[CircleDollarSign,'finance','Finance'],[CircleUserRound,'profile','Profil']] as const;
 function getToken(){return typeof window==='undefined'?null:localStorage.getItem(TOKEN_KEY)}
@@ -21,11 +22,13 @@ async function request(path:string,options?:RequestInit){
   return res.json();
 }
 
-export function WebApp({balances,properties}:{balances:Balance[];properties:PropertyListing[];banners:unknown[];videos:unknown[]}){
+export function WebApp({balances,properties,banners,videos}:{balances:Balance[];properties:PropertyListing[];banners:ContentItem[];videos:ContentItem[]}){
   const [checking,setChecking]=useState(true);
   const [profile,setProfile]=useState<Profile|null>(null);
   const [tab,setTab]=useState<Tab>('home');
-  const [modal,setModal]=useState<'invest'|'withdraw'|'support'|null>(null);
+  const [modal,setModal]=useState<'invest'|'withdraw'|'support'|'videos'|null>(null);
+  const [notifications,setNotifications]=useState<ContentItem[]>([]);
+  const [showNotifications,setShowNotifications]=useState(false);
 
   async function loadProfile(){
     const token=getToken();
@@ -38,20 +41,38 @@ export function WebApp({balances,properties}:{balances:Balance[];properties:Prop
     setChecking(false);
   }
   useEffect(()=>{loadProfile()},[]);
+  useEffect(()=>{request('/notifications').then(setNotifications).catch(()=>setNotifications([]))},[]);
 
   if(checking)return <div className="webapp"/>;
   if(!profile)return <AuthScreen onSuccess={()=>{setChecking(true);loadProfile()}}/>;
 
-  return <div className="webapp"><header className="top"><div className="logo"><span className="logo-mark"><i/><i/><i/></span><span><b>PRIME</b><small>CAPITAL</small></span></div><button aria-label="Bildirishnomalar"><Bell/><em/></button></header><main>
-    {tab==='home'?<HomeScreen balances={balances} properties={properties} onInvest={()=>setModal('invest')} onWithdraw={()=>setModal('withdraw')} onSupport={()=>setModal('support')}/>:null}
+  return <div className="webapp"><header className="top"><div className="logo"><span className="logo-mark"><i/><i/><i/></span><span><b>PRIME</b><small>CAPITAL</small></span></div><button aria-label="Bildirishnomalar" onClick={()=>setShowNotifications(x=>!x)}><Bell/>{notifications.length?<em/>:null}</button></header>
+  {showNotifications?<NotificationsPanel items={notifications} onClose={()=>setShowNotifications(false)}/>:null}
+  <main>
+    {tab==='home'?<HomeScreen balances={balances} properties={properties} banners={banners} onInvest={()=>setModal('invest')} onWithdraw={()=>setModal('withdraw')} onSupport={()=>setModal('support')} onVideos={()=>setModal('videos')}/>:null}
     {tab==='apartments'?<ApartmentsScreen properties={properties}/>:null}
     {tab==='finance'?<FinanceScreen/>:null}
-    {tab==='profile'?<ProfileScreen profile={profile} onSupport={()=>setModal('support')} onLogout={()=>{clearToken();setProfile(null)}}/>:null}
+    {tab==='profile'?<ProfileScreen profile={profile} onSupport={()=>setModal('support')} onVideos={()=>setModal('videos')} onLogout={()=>{clearToken();setProfile(null)}}/>:null}
   </main><nav className="bottom-nav">{navItems.map(([Icon,id,label])=><button className={tab===id?'active':''} onClick={()=>setTab(id)} key={id}><Icon/><span>{label}</span></button>)}</nav>
   {modal==='invest'?<MoneyModal title="Investitsiya kiritish" action="investments" onClose={()=>setModal(null)}/>:null}
   {modal==='withdraw'?<MoneyModal title="Pul yechish" action="withdrawals" onClose={()=>setModal(null)}/>:null}
   {modal==='support'?<SupportModal onClose={()=>setModal(null)}/>:null}
+  {modal==='videos'?<VideosModal items={videos} onClose={()=>setModal(null)}/>:null}
   </div>
+}
+
+function NotificationsPanel({items,onClose}:{items:ContentItem[];onClose:()=>void}){
+  return <div className="notif-overlay" onClick={onClose}><div className="notif-panel" onClick={(e)=>e.stopPropagation()}>
+    <div className="modal-head"><h2>Bildirishnomalar</h2><button onClick={onClose}><X size={18}/></button></div>
+    {items.length?items.map(item=><article className="notif-row" key={item.id}><strong>{item.title}</strong>{item.description?<p>{item.description}</p>:null}</article>):<div className="empty-state">Hozircha bildirishnoma yo‘q.</div>}
+  </div></div>
+}
+
+function VideosModal({items,onClose}:{items:ContentItem[];onClose:()=>void}){
+  return <div className="modal-overlay" onClick={onClose}><div className="modal-card" onClick={(e)=>e.stopPropagation()}>
+    <div className="modal-head"><h2>Video darslar</h2><button onClick={onClose}><X size={18}/></button></div>
+    <div className="video-list">{items.length?items.map(item=><a className="video-row" href={item.url} target="_blank" rel="noreferrer" key={item.id}><PlayCircle/><div><strong>{item.title}</strong>{item.description?<span>{item.description}</span>:null}</div></a>):<div className="empty-state">Hozircha video yo‘q.</div>}</div>
+  </div></div>
 }
 
 function AuthScreen({onSuccess}:{onSuccess:()=>void}){
@@ -85,10 +106,12 @@ function AuthScreen({onSuccess}:{onSuccess:()=>void}){
   </div></div>
 }
 
-function HomeScreen({balances,properties,onInvest,onWithdraw,onSupport}:{balances:Balance[];properties:PropertyListing[];onInvest:()=>void;onWithdraw:()=>void;onSupport:()=>void}){
-  const quickItems = [[PlusCircle,'Investitsiya kiritish',onInvest],[PlayCircle,'Video darslar',()=>{}],[Headphones,'Aloqa',onSupport],[WalletCards,'Pul yechish',onWithdraw]] as const;
+function HomeScreen({balances,properties,banners,onInvest,onWithdraw,onSupport,onVideos}:{balances:Balance[];properties:PropertyListing[];banners:ContentItem[];onInvest:()=>void;onWithdraw:()=>void;onSupport:()=>void;onVideos:()=>void}){
+  const quickItems = [[PlusCircle,'Investitsiya kiritish',onInvest],[PlayCircle,'Video darslar',onVideos],[Headphones,'Aloqa',onSupport],[WalletCards,'Pul yechish',onWithdraw]] as const;
+  const hero=banners[0];
   return <>
- <section className="hero"><img src="/residence.png" alt="Prime Capital zamonaviy turar joy majmuasi"/><div><h1>Prime joylarda<br/>kelajagingizni yarating</h1><p>Ishonchli investitsiya, barqaror daromad.</p><button>Loyihalarni ko‘rish <span>→</span></button></div></section>
+ <section className="hero"><img src={hero?.imageUrl||'/residence.png'} alt={hero?.title||'Prime Capital zamonaviy turar joy majmuasi'}/><div><h1>{hero?.title||<>Prime joylarda<br/>kelajagingizni yarating</>}</h1><p>{hero?.description||'Ishonchli investitsiya, barqaror daromad.'}</p><a href={hero?.url||'#'}><button>Loyihalarni ko‘rish <span>→</span></button></a></div></section>
+ {banners.length>1?<section className="banner-rail">{banners.slice(1).map(b=><a className="banner-card" href={b.url||'#'} key={b.id}>{b.imageUrl?<img src={b.imageUrl} alt={b.title}/>:null}<div><strong>{b.title}</strong>{b.description?<span>{b.description}</span>:null}</div></a>)}</section>:null}
  <section className="balances">{balances.slice(0,2).map((balance,index)=><article key={balance.id}><div className={`account-icon ${index?'cyan':''}`}>{index?<Landmark/>:<Building2/>}</div><div><h2>{balance.name}</h2><span>Hisob raqami</span></div><strong>{money(balance.amount)} <small>so‘m</small></strong><p>Oylik o‘zgarish <b className={balance.monthlyChange<0?'negative':''}>{balance.monthlyChange>0?'+':''}{balance.monthlyChange}% {balance.monthlyChange>0?'↗':'↘'}</b></p></article>)}</section>
  <section className="quick">{quickItems.map(([Icon,label,onClick])=><button key={label} onClick={onClick}><span><Icon/></span>{label}</button>)}</section><Chart/>
  <section className="property-section"><div className="section-title"><h2>Yangi novostroykalar</h2><button>Barchasini ko‘rish →</button></div><div className="property-rail">{properties.slice(0,3).map((item)=><article key={item.id}><div className="property-image"><img src="/residence.png" alt=""/><b>Yangi</b></div><h3>{item.title}</h3><p><MapPin/> {item.location}</p><strong>{money(item.price)} so‘m / m²</strong></article>)}</div></section></>}
@@ -121,9 +144,9 @@ function FinanceScreen(){
     {loading?<div className="empty-state">Yuklanmoqda...</div>:entries.length?entries.map((item)=><div className="entry" key={item.id}><i className={item.type}/><div><b>{item.category}</b><span>{item.type==='income'?'Kirim':'Chiqim'}</span></div><strong className={item.type}>{item.type==='income'?'+':'-'}{money(item.amount)}</strong></div>):<div className="empty-state">Hozircha yozuv yo‘q.</div>}
   </section>}
 
-function ProfileScreen({profile,onSupport,onLogout}:{profile:Profile;onSupport:()=>void;onLogout:()=>void}){
+function ProfileScreen({profile,onSupport,onVideos,onLogout}:{profile:Profile;onSupport:()=>void;onVideos:()=>void;onLogout:()=>void}){
   const balances:Balance[]=[{id:'prime-capital',name:'Prime Capital',amount:profile.primeCapital,monthlyChange:0,updatedAt:new Date().toISOString()},{id:'php-invest',name:'PHP Invest',amount:profile.phpInvest,monthlyChange:0,updatedAt:new Date().toISOString()}];
-  const items:[string,(()=>void)?][]=[['Ma’lumotlarim'],['Support',onSupport],['Aktivlarim'],[`PHP Invest balansim: ${money(profile.phpInvest)} so‘m`],[`Prime Capital balansim: ${money(profile.primeCapital)} so‘m`],['Video darslar']];
+  const items:[string,(()=>void)?][]=[['Ma’lumotlarim'],['Support',onSupport],['Aktivlarim'],[`PHP Invest balansim: ${money(profile.phpInvest)} so‘m`],[`Prime Capital balansim: ${money(profile.primeCapital)} so‘m`],['Video darslar',onVideos]];
   return <section className="page profile-page"><div className="profile-head"><CircleUserRound/><div><h1>{profile.name}</h1><p>{profile.email}</p></div></div>
     {items.map(([label,onClick])=><button key={label} onClick={onClick}>{label}<span>›</span></button>)}
     <button className="logout" onClick={onLogout}>Chiqish</button>
