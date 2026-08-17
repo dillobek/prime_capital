@@ -16,19 +16,16 @@ const now = () => new Date().toISOString();
 @Injectable()
 export class PlatformService {
   private readonly dataFile = process.env.DATA_FILE ?? '/app/data/platform.json';
+  // No placeholder/demo records — only the real admin account exists until real users register or an admin adds real content.
   private users: RecordItem[] = [
     { id: 'admin', name: 'Administrator', email: 'admin@primecapital.uz', phone: '+998 90 000 00 00', passwordHash: '$2b$10$7fBoQz0P2MgeO/Qv8/O7Ze8vN/qdF5hrli5qbI/I7EAmhktGKQ4Yu', role: 'admin', phpInvest: 0, primeCapital: 0, status: 'active', createdAt: now() },
-    { id: 'demo-user', name: 'Saydullo Xaydarov', email: 'saydullo@prime.uz', phone: '+998 90 123 45 67', passwordHash: '$2b$10$7fBoQz0P2MgeO/Qv8/O7Ze8vN/qdF5hrli5qbI/I7EAmhktGKQ4Yu', role: 'user', phpInvest: 400, primeCapital: 200, status: 'active', createdAt: now() },
   ];
-  private banners: RecordItem[] = [{ id: 'banner-1', title: 'Prime joylarda kelajagingizni yarating', description: 'Ishonchli investitsiya, barqaror daromad.', imageUrl: '/property-banner.jpg', url: '/apartments', status: 'active', createdAt: now() }];
-  private videos: RecordItem[] = [{ id: 'video-1', title: 'Investitsiyani qanday boshlash kerak?', description: 'Boshlang‘ich video dars', url: 'https://example.com/video', status: 'active', createdAt: now() }];
-  private notifications: RecordItem[] = [{ id: 'notice-1', title: 'Avgust oyi natijalari', description: 'Prime Capital balansi 20% o‘sdi.', status: 'active', createdAt: now() }];
+  private banners: RecordItem[] = [];
+  private videos: RecordItem[] = [];
+  private notifications: RecordItem[] = [];
   private investments: RecordItem[] = [];
   private withdrawals: RecordItem[] = [];
-  private finance: RecordItem[] = [
-    { id: 'f1', userId: 'demo-user', type: 'income', category: 'Maosh', amount: 15000000, note: 'Avgust', date: now(), createdAt: now() },
-    { id: 'f2', userId: 'demo-user', type: 'expense', category: 'Uy', amount: 3200000, note: 'Ijara', date: now(), createdAt: now() },
-  ];
+  private finance: RecordItem[] = [];
   private support: RecordItem[] = [];
   /** Last percent an admin applied to each product via applyPercent() — shown as the "monthly change" on real balance cards, never a fake number. */
   private lastPercent: ProductPercent = { 'prime-capital': 0, 'php-invest': 0 };
@@ -36,13 +33,15 @@ export class PlatformService {
   private balanceOverrides: ProductOverride = { 'prime-capital': null, 'php-invest': null };
   /** Date the last percent was applied per product — so the balance card can show "12% — 17.08.2026" instead of an unlabeled number. */
   private lastAppliedAt: ProductDate = { 'prime-capital': null, 'php-invest': null };
+  /** Full history of every percent change ever applied, oldest first — so growth over time can be reconstructed later, not just the last value. */
+  private percentHistory: RecordItem[] = [];
 
   constructor(private readonly jwt: JwtService) { this.load(); this.ensureAdminCredentials(); }
   private load() {
     if (!existsSync(this.dataFile)) return;
     try {
       const data = JSON.parse(readFileSync(this.dataFile, 'utf8')) as Record<string, RecordItem[]> & { lastPercent?: ProductPercent; balanceOverrides?: ProductOverride; lastAppliedAt?: ProductDate };
-      for (const key of ['users','banners','videos','notifications','investments','withdrawals','finance','support'] as const) if (Array.isArray(data[key])) this[key] = data[key];
+      for (const key of ['users','banners','videos','notifications','investments','withdrawals','finance','support','percentHistory'] as const) if (Array.isArray(data[key])) this[key] = data[key];
       if (data.lastPercent) this.lastPercent = data.lastPercent;
       if (data.balanceOverrides) this.balanceOverrides = data.balanceOverrides;
       if (data.lastAppliedAt) this.lastAppliedAt = data.lastAppliedAt;
@@ -64,7 +63,7 @@ export class PlatformService {
   }
   private save() {
     mkdirSync(dirname(this.dataFile), { recursive: true });
-    writeFileSync(this.dataFile, JSON.stringify({ users:this.users,banners:this.banners,videos:this.videos,notifications:this.notifications,investments:this.investments,withdrawals:this.withdrawals,finance:this.finance,support:this.support,lastPercent:this.lastPercent,balanceOverrides:this.balanceOverrides,lastAppliedAt:this.lastAppliedAt }, null, 2));
+    writeFileSync(this.dataFile, JSON.stringify({ users:this.users,banners:this.banners,videos:this.videos,notifications:this.notifications,investments:this.investments,withdrawals:this.withdrawals,finance:this.finance,support:this.support,lastPercent:this.lastPercent,balanceOverrides:this.balanceOverrides,lastAppliedAt:this.lastAppliedAt,percentHistory:this.percentHistory }, null, 2));
   }
   async register(dto: RegisterDto) {
     if (this.users.some((user) => user.email === dto.email)) throw new ConflictException('Email already exists');
@@ -123,15 +122,19 @@ export class PlatformService {
   profile(userId: string) { const user = this.users.find((item) => item.id === userId); if (!user) throw new NotFoundException(); const { passwordHash: _, ...safe } = user; return safe; }
   updateProfile(userId: string, dto: Record<string, unknown>) { const user = this.users.find((item) => item.id === userId); if (!user) throw new NotFoundException(); Object.assign(user, dto, { id: user.id, passwordHash: user.passwordHash }); this.save(); return this.profile(userId); }
   updateUserBalances(userId: string, dto: UserBalancesDto) { const user = this.users.find((item) => item.id === userId); if (!user) throw new NotFoundException(); Object.assign(user, dto); this.save(); return this.profile(userId); }
-  /** percent > 0 grows every user's balance for this product (e.g. 12 → 100$ becomes 112$); percent < 0 shrinks it (e.g. -12 → 100$ becomes 88$). */
+  /** percent > 0 grows every user's balance for this product (e.g. 12 → 100$ becomes 112$); percent < 0 shrinks it (e.g. -12 → 100$ becomes 88$). Every application is appended to percentHistory, never overwritten, so growth over time can be reconstructed later. */
   applyPercent(product: Product, percent: number) {
     const field = product === 'prime-capital' ? 'primeCapital' : 'phpInvest';
     for (const user of this.users) user[field] = Math.round(Number(user[field] ?? 0) * (1 + percent / 100) * 100) / 100;
     this.lastPercent[product] = percent;
-    this.lastAppliedAt[product] = now();
+    const appliedAt = now();
+    this.lastAppliedAt[product] = appliedAt;
+    this.percentHistory.unshift({ id: id(), product, percent, direction: percent < 0 ? 'down' : 'up', affectedUsers: this.users.length, createdAt: appliedAt });
     this.save();
     return { product, percent, affectedUsers: this.users.length };
   }
+  /** Full percent-change history, newest first — powers a growth-over-time view later instead of only ever showing the latest percent. */
+  listPercentHistory() { return this.percentHistory; }
   /** Real headline balances: sum of every user's balance per product (or an admin override), with the last applied percent + date as the change figure. Backs both the public /balances endpoint and the admin dashboard — no more hardcoded demo numbers. */
   platformBalances(): { id: Product; name: string; amount: number; monthlyChange: number; updatedAt: string }[] {
     const sum = (field: 'primeCapital' | 'phpInvest') => this.users.reduce((total, user) => total + Number(user[field] ?? 0), 0);
@@ -159,10 +162,10 @@ export class PlatformService {
   createContent(store: 'banners'|'videos'|'notifications', dto: ContentDto) { const item = { id: id(), ...dto, status: dto.status ?? 'active', createdAt: now() }; this[store].unshift(item); this.save(); return item; }
   updateContent(store: 'banners'|'videos'|'notifications', itemId: string, dto: Partial<ContentDto>) { const item = this[store].find((entry) => entry.id === itemId); if (!item) throw new NotFoundException(); Object.assign(item, dto); return item; }
   removeContent(store: 'banners'|'videos'|'notifications', itemId: string) { const index = this[store].findIndex((entry) => entry.id === itemId); if (index < 0) throw new NotFoundException(); const removed=this[store].splice(index, 1)[0]; this.save(); return removed; }
-  createMoney(store: 'investments'|'withdrawals', dto: MoneyRequestDto) { const item = { id: id(), ...dto, status: 'pending', createdAt: now() }; this[store].unshift(item); return item; }
-  updateStatus(store: 'investments'|'withdrawals'|'support', itemId: string, status: string) { const item = this[store].find((entry) => entry.id === itemId); if (!item) throw new NotFoundException(); item.status = status; return item; }
+  createMoney(store: 'investments'|'withdrawals', dto: MoneyRequestDto) { const item = { id: id(), ...dto, status: 'pending', createdAt: now() }; this[store].unshift(item); this.save(); return item; }
+  updateStatus(store: 'investments'|'withdrawals'|'support', itemId: string, status: string) { const item = this[store].find((entry) => entry.id === itemId); if (!item) throw new NotFoundException(); item.status = status; this.save(); return item; }
   listFinance(userId?: string) { return userId ? this.finance.filter((entry) => entry.userId === userId) : this.finance; }
-  createFinance(dto: FinanceEntryDto) { const item = { id: id(), ...dto, date: dto.date ?? now(), createdAt: now() }; this.finance.unshift(item); return item; }
-  removeFinance(itemId: string) { const index = this.finance.findIndex((entry) => entry.id === itemId); if (index < 0) throw new NotFoundException(); return this.finance.splice(index, 1)[0]; }
-  createSupport(dto: SupportDto) { const item = { id: id(), ...dto, status: 'pending', createdAt: now() }; this.support.unshift(item); return item; }
+  createFinance(dto: FinanceEntryDto) { const item = { id: id(), ...dto, date: dto.date ?? now(), createdAt: now() }; this.finance.unshift(item); this.save(); return item; }
+  removeFinance(itemId: string) { const index = this.finance.findIndex((entry) => entry.id === itemId); if (index < 0) throw new NotFoundException(); const removed = this.finance.splice(index, 1)[0]; this.save(); return removed; }
+  createSupport(dto: SupportDto) { const item = { id: id(), ...dto, status: 'pending', createdAt: now() }; this.support.unshift(item); this.save(); return item; }
 }

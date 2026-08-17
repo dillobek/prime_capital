@@ -32,6 +32,10 @@ export class PlatformController {
   @UseGuards(JwtAuthGuard) @Roles('admin')
   @Post('users/apply-percent') applyPercent(@Body() dto: ApplyPercentDto) { return this.service.applyPercent(dto.product, dto.percent); }
 
+  /** Full history of every percent change ever applied — so growth over time can be reconstructed later, not just the latest value. */
+  @UseGuards(JwtAuthGuard) @Roles('admin')
+  @Get('users/apply-percent/history') percentHistory() { return this.service.listPercentHistory(); }
+
   @UseGuards(JwtAuthGuard) @Roles('admin')
   @Post('settings/credentials') changeCredentials(@Body() dto: ChangeCredentialsDto) { return this.service.changeCredentials(dto); }
 

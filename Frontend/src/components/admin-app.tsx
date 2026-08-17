@@ -76,6 +76,9 @@ function Balances({data}:{data:DashboardSummary}){
   const [direction,setDirection]=useState<'up'|'down'>('up');
   const [percent,setPercent]=useState(10);
   const [status,setStatus]=useState('');
+  const [history,setHistory]=useState<Item[]>([]);
+  const loadHistory=()=>request('/users/apply-percent/history').then(setHistory).catch(()=>setHistory([]));
+  useEffect(()=>{loadHistory()},[]);
   async function apply(e:FormEvent){
     e.preventDefault();
     const signed=direction==='down'?-Math.abs(percent):Math.abs(percent);
@@ -83,6 +86,7 @@ function Balances({data}:{data:DashboardSummary}){
     try{
       const r=await request('/users/apply-percent',{method:'POST',body:JSON.stringify({product,percent:signed})});
       setStatus(`${r.affectedUsers} foydalanuvchiga ${signed>0?'+':''}${signed}% qo‘llandi — ${new Date().toLocaleDateString('uz-UZ')}`);
+      loadHistory();
     }catch{setStatus('Xatolik yuz berdi')}
   }
   const productName=product==='prime-capital'?'Prime Capital':'PHP Invest';
@@ -92,7 +96,11 @@ function Balances({data}:{data:DashboardSummary}){
     <label>Foiz (%)<input type="number" step="0.1" min={0} value={percent} onChange={e=>setPercent(+e.target.value)}/></label>
     <button className="primary">{productName} balansini {direction==='up'?'oshirish':'kamaytirish'}</button>
     <small>{status}</small>
-  </form></section></div>;
+  </form></section>
+  <section className="panel list-panel"><h2>Foiz o‘zgarishlari tarixi</h2>
+    {history.map(h=><article className="content-row" key={h.id}><div><strong>{h.product==='prime-capital'?'Prime Capital':'PHP Invest'} — {Number(h.percent)>0?'+':''}{String(h.percent)}%</strong><p>{h.direction==='up'?'Ko‘tarildi':'Tushdi'} · {h.affectedUsers as number} foydalanuvchiga · {new Date(String(h.createdAt)).toLocaleString('uz-UZ')}</p></div></article>)}
+    {!history.length?<div className="empty-state">Hozircha tarix yo‘q.</div>:null}
+  </section></div>;
 }
 function ContentManager({type,title,image=false}:{type:'banners'|'videos';title:string;image?:boolean}){const [list,setList]=useState<Item[]>([]),[status,setStatus]=useState('');useEffect(()=>{request(`/${type}`).then(setList).catch(()=>setList([]))},[type]);async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const form=e.currentTarget,f=new FormData(form),body={title:f.get('title'),description:f.get('description'),url:f.get('url'),imageUrl:f.get('imageUrl'),status:'active'};try{const created=await request(`/${type}`,{method:'POST',body:JSON.stringify(body)});setList(x=>[created,...x]);form.reset();setStatus('Saqlandi')}catch{setStatus('Saqlashda xatolik')}}async function remove(id:string){await request(`/${type}/${id}`,{method:'DELETE'});setList(x=>x.filter(i=>i.id!==id))}return <div className="admin-grid"><section className="panel form-panel"><h2>Yangi {title.toLowerCase()} qo‘shish</h2><form onSubmit={submit}><label>Sarlavha<input name="title" required/></label><label>Tavsif<textarea name="description" rows={4}/></label>{image?<label>Rasm URL<input name="imageUrl" type="url" placeholder="https://..."/></label>:null}<label>{image?'Yo‘naltirish URL':'YouTube URL'}<input name="url" type="url" required placeholder="https://youtube.com/..."/></label><button className="primary"><Plus size={17}/> Qo‘shish</button><small>{status}</small></form></section><section className="panel list-panel"><h2>{title} ro‘yxati</h2>{list.map(i=><article className="content-row" key={i.id}><div><strong>{i.title}</strong><p>{i.description as string}</p><a href={i.url as string} target="_blank">{i.url as string}</a></div><button onClick={()=>remove(i.id)}>O‘chirish</button></article>)}{!list.length?<div className="empty-state">Hozircha ma’lumot yo‘q.</div>:null}</section></div>}
 function PropertiesManager(){
@@ -110,12 +118,12 @@ function PropertiesManager(){
     <label>Sarlavha<input name="title" required/></label>
     <label>Turi<select name="type" defaultValue="new-build"><option value="new-build">Novostroyka</option><option value="resale">Ikkilamchi</option></select></label>
     <label>Manzil<input name="location" required/></label>
-    <label>Narxi (so‘m)<input name="price" type="number" required min={1}/></label>
+    <label>Narxi ($)<input name="price" type="number" required min={1}/></label>
     <label>Xonalar soni<input name="rooms" type="number" required min={1}/></label>
     <label>Maydoni (m²)<input name="area" type="number" required min={1}/></label>
     <button className="primary"><Plus size={17}/> Qo‘shish</button><small>{status}</small>
   </form></section>
-  <section className="panel list-panel"><h2>Kvartiralar ro‘yxati</h2>{list.map(item=><article className="content-row" key={item.id}><div><strong>{item.title}</strong><p>{item.location} · {money(item.price)} so‘m · {item.rooms} xona</p><select value={item.status} onChange={(e)=>changeStatus(item.id,e.target.value)}><option value="active">Faol</option><option value="pending">Kutilmoqda</option><option value="inactive">Nofaol</option></select></div><button onClick={()=>remove(item.id)}>O‘chirish</button></article>)}{!list.length?<div className="empty-state">Hozircha kvartira yo‘q.</div>:null}</section></div>
+  <section className="panel list-panel"><h2>Kvartiralar ro‘yxati</h2>{list.map(item=><article className="content-row" key={item.id}><div><strong>{item.title}</strong><p>{item.location} · {usd(item.price)} · {item.rooms} xona</p><select value={item.status} onChange={(e)=>changeStatus(item.id,e.target.value)}><option value="active">Faol</option><option value="pending">Kutilmoqda</option><option value="inactive">Nofaol</option></select></div><button onClick={()=>remove(item.id)}>O‘chirish</button></article>)}{!list.length?<div className="empty-state">Hozircha kvartira yo‘q.</div>:null}</section></div>
 }
 function Requests(){
   const [tab,setTab]=useState<'investments'|'withdrawals'>('investments');
@@ -123,7 +131,7 @@ function Requests(){
   useEffect(()=>{request(`/${tab}`).then(setList).catch(()=>setList([]))},[tab]);
   async function decide(id:string,decision:'approved'|'rejected'){const updated=await request(`/${tab}/${id}/status`,{method:'PATCH',body:JSON.stringify({status:decision})});setList(x=>x.map(i=>i.id===id?updated:i))}
   return <section className="panel list-panel wide-form"><div className="panel-head"><h2>Investitsiya va pul yechish so‘rovlari</h2><select value={tab} onChange={(e)=>setTab(e.target.value as 'investments'|'withdrawals')}><option value="investments">Investitsiyalar</option><option value="withdrawals">Pul yechishlar</option></select></div>
-    {list.map(item=><article className="content-row" key={item.id}><div><strong>{money(Number(item.amount??0))} so‘m</strong><p>{String(item.product)} · {String(item.userId)} {item.note?`· ${item.note}`:''}</p><span className={`status ${item.status}`}>{item.status==='pending'?'Kutilmoqda':item.status==='approved'?'Tasdiqlandi':'Rad etildi'}</span></div>{item.status==='pending'?<div className="request-actions"><button onClick={()=>decide(item.id,'approved')}>Tasdiqlash</button><button onClick={()=>decide(item.id,'rejected')}>Rad etish</button></div>:null}</article>)}
+    {list.map(item=><article className="content-row" key={item.id}><div><strong>{usd(Number(item.amount??0))}</strong><p>{String(item.product)} · {String(item.userId)} {item.note?`· ${item.note}`:''}</p><span className={`status ${item.status}`}>{item.status==='pending'?'Kutilmoqda':item.status==='approved'?'Tasdiqlandi':'Rad etildi'}</span></div>{item.status==='pending'?<div className="request-actions"><button onClick={()=>decide(item.id,'approved')}>Tasdiqlash</button><button onClick={()=>decide(item.id,'rejected')}>Rad etish</button></div>:null}</article>)}
     {!list.length?<div className="empty-state">Hozircha so‘rov yo‘q.</div>:null}
   </section>
 }
