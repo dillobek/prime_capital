@@ -8,6 +8,7 @@ type TelegramMessage = {
   contact?: { phone_number: string; user_id?: number };
 };
 type TelegramUpdate = { update_id: number; message?: TelegramMessage };
+type PhotoSize = { file_id: string; width: number; height: number };
 
 @Injectable()
 export class TelegramService implements OnModuleInit, OnModuleDestroy {
@@ -27,12 +28,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
   onModuleDestroy() { this.stopped = true; }
 
-  private async api(method: string, body?: Record<string, unknown>) {
+  private async api<T = unknown>(method: string, body?: Record<string, unknown>) {
     const response = await fetch(`https://api.telegram.org/bot${this.token}/${method}`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}),
     });
     if (!response.ok) throw new Error(`Telegram ${method}: ${response.status}`);
-    return response.json() as Promise<{ ok: boolean; result: TelegramUpdate[] }>;
+    return response.json() as Promise<{ ok: boolean; result: T }>;
   }
 
   private send(chatId: number, text: string, reply_markup?: Record<string, unknown>) {
@@ -43,7 +44,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.logger.log('Telegram bot polling boshlandi');
     while (!this.stopped) {
       try {
-        const data = await this.api('getUpdates', { offset: this.offset, timeout: 25, allowed_updates: ['message'] });
+        const data = await this.api<TelegramUpdate[]>('getUpdates', { offset: this.offset, timeout: 25, allowed_updates: ['message'] });
         for (const update of data.result ?? []) {
           this.offset = update.update_id + 1;
           if (update.message) await this.handle(update.message);
@@ -59,7 +60,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     const chatId = message.chat.id;
     const telegramId = String(message.from?.id ?? chatId);
     if (message.text?.startsWith('/start')) {
-      if (this.platform.findTelegramUser(telegramId)) return this.openApp(chatId);
+      // Always check the DB first — an already-registered user just gets the WebApp button again, never re-registered.
+      const existingUser = this.platform.findTelegramUser(telegramId);
+      if (existingUser) {
+        if (!existingUser.photoUrl) {
+          void this.fetchProfilePhoto(Number(telegramId)).then((photoUrl) => { if (photoUrl) this.platform.updateTelegramPhoto(telegramId, photoUrl); });
+        }
+        return this.openApp(chatId);
+      }
       const current = this.states.get(chatId);
       if (current?.step === 'phone') {
         await this.askPhone(chatId, `F.I.O qabul qilindi: ${current.name}. Endi telefon raqamingizni yuboring:`);
@@ -89,12 +97,35 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.platform.registerTelegramUser({ telegramId, name: state.name!, phone, username: message.from?.username });
     this.states.delete(chatId);
     await this.openApp(chatId, true);
+    // Fetch the profile photo after responding, so registration doesn't wait on it.
+    void this.fetchProfilePhoto(Number(telegramId)).then((photoUrl) => { if (photoUrl) this.platform.updateTelegramPhoto(telegramId, photoUrl); });
   }
 
   private askPhone(chatId: number, text: string) {
     return this.send(chatId, text, {
       keyboard: [[{ text: '📱 Telefon raqamni yuborish', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true,
     });
+  }
+
+  /** Downloads the user's largest Telegram profile photo and inlines it as a data: URL — never expose the bot token via a raw file URL to the client. */
+  private async fetchProfilePhoto(userId: number): Promise<string | undefined> {
+    try {
+      const photos = await this.api<{ total_count: number; photos: PhotoSize[][] }>('getUserProfilePhotos', { user_id: userId, limit: 1 });
+      const sizes = photos.result?.photos?.[0];
+      if (!sizes?.length) return undefined;
+      const fileId = sizes[sizes.length - 1].file_id;
+      const fileInfo = await this.api<{ file_path?: string }>('getFile', { file_id: fileId });
+      const filePath = fileInfo.result?.file_path;
+      if (!filePath) return undefined;
+      const response = await fetch(`https://api.telegram.org/file/bot${this.token}/${filePath}`);
+      if (!response.ok) return undefined;
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const contentType = response.headers.get('content-type') ?? 'image/jpeg';
+      return `data:${contentType};base64,${buffer.toString('base64')}`;
+    } catch (error) {
+      this.logger.warn(`Profil rasmini olishda xatolik: ${error instanceof Error ? error.message : error}`);
+      return undefined;
+    }
   }
 
   async broadcast(title: string, message: string) {

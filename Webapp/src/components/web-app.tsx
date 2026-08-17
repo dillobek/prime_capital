@@ -6,7 +6,7 @@ import type { Balance, PropertyListing } from '@prime/contracts';
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:4000/api/v1';
 const TOKEN_KEY = 'prime_webapp_token';
 type Tab='home'|'apartments'|'finance'|'profile';
-type Profile={id:string;name:string;email:string;phone?:string;phpInvest:number;primeCapital:number};
+type Profile={id:string;name:string;email:string;phone?:string;phpInvest:number;primeCapital:number;photoUrl?:string};
 type FinanceEntry={id:string;type:'income'|'expense';category:string;amount:number;note?:string};
 type ContentItem={id:string;title:string;description?:string;url?:string;imageUrl?:string};
 const money=(value:number)=>new Intl.NumberFormat('uz-UZ').format(value);
@@ -21,6 +21,13 @@ async function request(path:string,options?:RequestInit){
   if(!res.ok)throw new Error(await res.text().catch(()=>'Xatolik'));
   return res.json();
 }
+declare global { interface Window { Telegram?: { WebApp?: { initData?: string; ready?: () => void; expand?: () => void } } } }
+/** If opened from the bot's WebApp button, log in silently using Telegram's signed initData — no password screen for bot-registered users. */
+async function loginWithTelegram(){
+  const initData=typeof window!=='undefined'?window.Telegram?.WebApp?.initData:undefined;
+  if(!initData)return false;
+  try{const data=await request('/auth/telegram',{method:'POST',body:JSON.stringify({initData})});setToken(data.accessToken);return true}catch{return false}
+}
 
 export function WebApp({balances,properties,banners,videos}:{balances:Balance[];properties:PropertyListing[];banners:ContentItem[];videos:ContentItem[]}){
   const [checking,setChecking]=useState(true);
@@ -31,7 +38,10 @@ export function WebApp({balances,properties,banners,videos}:{balances:Balance[];
   const [showNotifications,setShowNotifications]=useState(false);
 
   async function loadProfile(){
-    const token=getToken();
+    window.Telegram?.WebApp?.ready?.();
+    window.Telegram?.WebApp?.expand?.();
+    let token=getToken();
+    if(!token && await loginWithTelegram())token=getToken();
     if(!token){setChecking(false);return}
     try{
       const payload=JSON.parse(atob(token.split('.')[1]));
@@ -147,7 +157,7 @@ function FinanceScreen(){
 function ProfileScreen({profile,onSupport,onVideos,onLogout}:{profile:Profile;onSupport:()=>void;onVideos:()=>void;onLogout:()=>void}){
   const balances:Balance[]=[{id:'prime-capital',name:'Prime Capital',amount:profile.primeCapital,monthlyChange:0,updatedAt:new Date().toISOString()},{id:'php-invest',name:'PHP Invest',amount:profile.phpInvest,monthlyChange:0,updatedAt:new Date().toISOString()}];
   const items:[string,(()=>void)?][]=[['Ma’lumotlarim'],['Support',onSupport],['Aktivlarim'],[`PHP Invest balansim: ${money(profile.phpInvest)} so‘m`],[`Prime Capital balansim: ${money(profile.primeCapital)} so‘m`],['Video darslar',onVideos]];
-  return <section className="page profile-page"><div className="profile-head"><CircleUserRound/><div><h1>{profile.name}</h1><p>{profile.email}</p></div></div>
+  return <section className="page profile-page"><div className="profile-head">{profile.photoUrl?<img className="profile-photo" src={profile.photoUrl} alt={profile.name}/>:<CircleUserRound/>}<div><h1>{profile.name}</h1><p>{profile.email}</p></div></div>
     {items.map(([label,onClick])=><button key={label} onClick={onClick}>{label}<span>›</span></button>)}
     <button className="logout" onClick={onLogout}>Chiqish</button>
     <small>Umumiy balans: {money(balances.reduce((s,b)=>s+b.amount,0))} so‘m</small></section>}

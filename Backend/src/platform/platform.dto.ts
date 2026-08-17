@@ -7,6 +7,7 @@ export class RegisterDto {
   @IsOptional() @IsString() phone?: string;
 }
 export class LoginDto { @IsEmail() email!: string; @IsString() password!: string; }
+export class TelegramAuthDto { @IsString() @MinLength(10) initData!: string; }
 export class ContentDto {
   @IsString() title!: string;
   @IsOptional() @IsString() description?: string;

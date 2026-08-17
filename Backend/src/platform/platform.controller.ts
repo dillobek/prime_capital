@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { AuthedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
-import { ApplyPercentDto, ChangeCredentialsDto, ContentDto, FinanceEntryDto, LoginDto, MoneyRequestDto, RegisterDto, StatusDto, SupportDto, UserBalancesDto } from './platform.dto';
+import { verifyTelegramInitData } from '../telegram/verify-init-data';
+import { ApplyPercentDto, ChangeCredentialsDto, ContentDto, FinanceEntryDto, LoginDto, MoneyRequestDto, RegisterDto, StatusDto, SupportDto, TelegramAuthDto, UserBalancesDto } from './platform.dto';
 import { PlatformService } from './platform.service';
 
 @Controller()
@@ -11,6 +12,15 @@ export class PlatformController {
   // --- Public: account creation / login ---
   @Post('auth/register') register(@Body() dto: RegisterDto) { return this.service.register(dto); }
   @Post('auth/login') login(@Body() dto: LoginDto) { return this.service.login(dto); }
+
+  /** Telegram Mini App entry point: no password, initData signature is the proof of identity. */
+  @Post('auth/telegram') telegramAuth(@Body() dto: TelegramAuthDto) {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) throw new UnauthorizedException('Telegram bot sozlanmagan');
+    const telegramUser = verifyTelegramInitData(dto.initData, botToken);
+    if (!telegramUser) throw new UnauthorizedException('Telegram ma’lumotlari yaroqsiz');
+    return this.service.loginTelegram(String(telegramUser.id));
+  }
 
   // --- Admin only: user management ---
   @UseGuards(JwtAuthGuard) @Roles('admin')

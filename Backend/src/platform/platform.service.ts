@@ -90,6 +90,18 @@ export class PlatformService {
     const user = this.users.find((item) => item.telegramId === telegramId);
     return user ? this.profile(user.id) : undefined;
   }
+  /** Used by POST /auth/telegram once the Mini App's initData signature is verified — no password needed for bot-registered users. */
+  loginTelegram(telegramId: string) {
+    const user = this.users.find((item) => item.telegramId === telegramId);
+    if (!user) throw new UnauthorizedException('Avval Telegram bot orqali ro‘yxatdan o‘ting (/start)');
+    return this.session(user);
+  }
+  updateTelegramPhoto(telegramId: string, photoUrl: string) {
+    const user = this.users.find((item) => item.telegramId === telegramId);
+    if (!user) return;
+    user.photoUrl = photoUrl;
+    this.save();
+  }
   private session(user: RecordItem) {
     const { passwordHash: _, ...safeUser } = user;
     return { accessToken: this.jwt.sign({ sub: user.id, role: user.role, email: user.email }), user: safeUser };
