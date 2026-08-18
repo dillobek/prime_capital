@@ -44,7 +44,13 @@ services:
     build:
       context: .
       dockerfile: Website/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    environment:
+      API_URL: http://backend:4000/api/v1
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     ports: ["3002:3002"]
+    depends_on: [backend]
     restart: unless-stopped
   caddy:
     image: caddy:2-alpine

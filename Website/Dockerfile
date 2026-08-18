@@ -9,6 +9,8 @@ COPY Website/package.json Website/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 RUN pnpm install --frozen-lockfile
 COPY Website Website
+ARG NEXT_PUBLIC_API_URL=https://api.primecapital.uz/api/v1
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm --filter @prime/website build
 EXPOSE 3002
 CMD ["pnpm","--filter","@prime/website","start"]
