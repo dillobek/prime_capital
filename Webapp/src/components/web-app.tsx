@@ -9,7 +9,8 @@ const TOKEN_KEY = 'prime_webapp_token';
 type Tab='home'|'apartments'|'finance'|'profile';
 type Profile={id:string;name:string;email:string;phone?:string;phpInvest:number;primeCapital:number;photoUrl?:string};
 type FinanceEntry={id:string;type:'income'|'expense';category:string;amount:number;note?:string};
-type ContentItem={id:string;title:string;description?:string;url?:string;imageUrl?:string};
+type NotificationButton={label:string;url:string};
+type ContentItem={id:string;title:string;description?:string;url?:string;imageUrl?:string;videoUrl?:string;buttons?:NotificationButton[]};
 const money=(value:number)=>new Intl.NumberFormat('uz-UZ').format(value);
 /** Prime Capital / PHP Invest balances are always denominated in USD, never so'm — property prices and finance-tracker entries stay in so'm. */
 const usd=(value:number)=>`$${new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(value)}`;
@@ -92,9 +93,21 @@ export function WebApp({balances,properties,banners,videos}:{balances:Balance[];
 
 function NotificationsPanel({items,onClose}:{items:ContentItem[];onClose:()=>void}){
   const { t } = useLang();
+  const [selected,setSelected]=useState<ContentItem|null>(null);
   return <div className="notif-overlay" onClick={onClose}><div className="notif-panel" onClick={(e)=>e.stopPropagation()}>
     <div className="modal-head"><h2>{t('wa.notifications.title')}</h2><button onClick={onClose}><X size={18}/></button></div>
-    {items.length?items.map(item=><article className="notif-row" key={item.id}><strong>{item.title}</strong>{item.description?<p>{item.description}</p>:null}</article>):<div className="empty-state">{t('wa.notifications.empty')}</div>}
+    {items.length?items.map(item=><article className="notif-row" onClick={()=>setSelected(item)} key={item.id}><strong>{item.title}</strong>{item.description?<p>{item.description}</p>:null}</article>):<div className="empty-state">{t('wa.notifications.empty')}</div>}
+  </div>
+  {selected?<NotificationDetailModal item={selected} onClose={()=>setSelected(null)}/>:null}
+  </div>
+}
+function NotificationDetailModal({item,onClose}:{item:ContentItem;onClose:()=>void}){
+  return <div className="modal-overlay" onClick={onClose}><div className="modal-card notif-detail" onClick={(e)=>e.stopPropagation()}>
+    <div className="modal-head"><h2>{item.title}</h2><button onClick={onClose}><X size={18}/></button></div>
+    {item.imageUrl?<img className="notif-detail-media" src={item.imageUrl} alt={item.title}/>:null}
+    {item.videoUrl?<video className="notif-detail-media" src={item.videoUrl} controls/>:null}
+    {item.description?<p className="notif-detail-text">{item.description}</p>:null}
+    {item.buttons?.length?<div className="notif-detail-buttons">{item.buttons.map((b,i)=><a key={i} className="notif-detail-button" href={b.url} target="_blank" rel="noreferrer">{b.label}</a>)}</div>:null}
   </div></div>
 }
 

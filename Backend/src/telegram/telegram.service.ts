@@ -40,6 +40,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     return this.api('sendMessage', { chat_id: chatId, text, reply_markup });
   }
 
+  /** Sends a plain text message, or a photo/video with the text as its caption when media is attached — used by broadcast() so admins can send image/video/text notifications, each with up to 3 inline URL buttons. */
+  private sendContent(chatId: number, text: string, media?: { imageUrl?: string; videoUrl?: string }, buttons?: { label: string; url: string }[]) {
+    const reply_markup = buttons?.length ? { inline_keyboard: buttons.map((button) => [{ text: button.label, url: button.url }]) } : undefined;
+    if (media?.imageUrl) return this.api('sendPhoto', { chat_id: chatId, photo: media.imageUrl, caption: text, reply_markup });
+    if (media?.videoUrl) return this.api('sendVideo', { chat_id: chatId, video: media.videoUrl, caption: text, reply_markup });
+    return this.send(chatId, text, reply_markup);
+  }
+
   private async poll() {
     this.logger.log('Telegram bot polling boshlandi');
     while (!this.stopped) {
@@ -128,9 +136,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async broadcast(title: string, message: string) {
+  async broadcast(title: string, message: string, options?: { imageUrl?: string; videoUrl?: string; buttons?: { label: string; url: string }[] }) {
     const users = this.platform.listUsers().filter((user) => user.telegramId);
-    const results = await Promise.allSettled(users.map((user) => this.send(Number(user.telegramId), `🔔 ${title}\n\n${message}`)));
+    const text = `🔔 ${title}\n\n${message}`;
+    const results = await Promise.allSettled(
+      users.map((user) => this.sendContent(Number(user.telegramId), text, { imageUrl: options?.imageUrl, videoUrl: options?.videoUrl }, options?.buttons)),
+    );
     return { sent: results.filter((item) => item.status === 'fulfilled').length, total: users.length };
   }
 

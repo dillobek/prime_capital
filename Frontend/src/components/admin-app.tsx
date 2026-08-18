@@ -166,6 +166,55 @@ function Support(){
     {!list.length?<div className="empty-state">Hozircha murojaat yo‘q.</div>:null}
   </section>
 }
-function Notifications(){const [status,setStatus]=useState('');async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const form=e.currentTarget,f=new FormData(form);setStatus('Yuborilmoqda...');try{const body={title:f.get('title'),message:f.get('message')},r=await request('/telegram/broadcast',{method:'POST',body:JSON.stringify(body)});await request('/notifications',{method:'POST',body:JSON.stringify({title:body.title,description:body.message,status:'active'})});setStatus(`${r.sent}/${r.total} foydalanuvchiga yuborildi`);form.reset()}catch{setStatus('Yuborishda xatolik')}}return <section className="panel form-panel wide-form"><h2>Foydalanuvchilarga bildirishnoma yuborish</h2><p>Xabar bot orqali ro‘yxatdan o‘tgan barcha Telegram foydalanuvchilariga yuboriladi.</p><form onSubmit={submit}><label>Sarlavha<input name="title" required/></label><label>Xabar<textarea name="message" rows={7} required/></label><button className="primary"><Bell size={17}/> Hammaga yuborish</button><small>{status}</small></form></section>}
+type ButtonRow={label:string;url:string};
+function Notifications(){
+  const [status,setStatus]=useState('');
+  const [sending,setSending]=useState(false);
+  const [mediaType,setMediaType]=useState<'none'|'image'|'video'>('none');
+  const [mediaUrl,setMediaUrl]=useState('');
+  const [buttons,setButtons]=useState<ButtonRow[]>([]);
+  function addButton(){if(buttons.length<3)setButtons(x=>[...x,{label:'',url:''}])}
+  function removeButton(index:number){setButtons(x=>x.filter((_,i)=>i!==index))}
+  function changeButton(index:number,key:keyof ButtonRow,value:string){setButtons(x=>x.map((b,i)=>i===index?{...b,[key]:value}:b))}
+  async function submit(e:FormEvent<HTMLFormElement>){
+    e.preventDefault();
+    const form=e.currentTarget,f=new FormData(form);
+    const cleanButtons=buttons.filter(b=>b.label.trim()&&b.url.trim());
+    const body:Record<string,unknown>={title:f.get('title'),message:f.get('message')};
+    if(mediaType==='image'&&mediaUrl)body.imageUrl=mediaUrl;
+    if(mediaType==='video'&&mediaUrl)body.videoUrl=mediaUrl;
+    if(cleanButtons.length)body.buttons=cleanButtons;
+    setSending(true);setStatus('Yuborilmoqda...');
+    try{
+      const r=await request('/telegram/broadcast',{method:'POST',body:JSON.stringify(body)});
+      await request('/notifications',{method:'POST',body:JSON.stringify({title:body.title,description:body.message,imageUrl:body.imageUrl,videoUrl:body.videoUrl,buttons:body.buttons,status:'active'})});
+      setStatus(`${r.sent}/${r.total} foydalanuvchiga yuborildi`);
+      form.reset();setMediaType('none');setMediaUrl('');setButtons([]);
+    }catch{setStatus('Yuborishda xatolik')}
+    finally{setSending(false)}
+  }
+  return <section className="panel form-panel wide-form"><h2>Foydalanuvchilarga bildirishnoma yuborish</h2><p>Xabar bot orqali ro‘yxatdan o‘tgan barcha Telegram foydalanuvchilariga yuboriladi va webappdagi bildirishnomalar ro‘yxatiga qo‘shiladi. Rasm yoki video (ikkalasi emas) hamda 3 tagacha URL tugma qo‘shishingiz mumkin.</p>
+    <form onSubmit={submit}>
+      <label>Sarlavha<input name="title" required/></label>
+      <label>Xabar matni<textarea name="message" rows={6} required/></label>
+      <label>Media turi<select value={mediaType} onChange={e=>{setMediaType(e.target.value as 'none'|'image'|'video');setMediaUrl('')}}>
+        <option value="none">Yo‘q — faqat matn</option>
+        <option value="image">Rasm</option>
+        <option value="video">Video</option>
+      </select></label>
+      {mediaType!=='none'?<label>{mediaType==='image'?'Rasm URL':'Video URL'}<input type="url" value={mediaUrl} onChange={e=>setMediaUrl(e.target.value)} placeholder="https://..." required/></label>:null}
+      <div className="buttons-editor">
+        <div className="buttons-editor-head"><span>Tugmalar ({buttons.length}/3)</span>{buttons.length<3?<button type="button" className="add-button-row" onClick={addButton}><Plus size={15}/> Tugma qo‘shish</button>:null}</div>
+        {buttons.map((b,i)=><div className="button-row" key={i}>
+          <input placeholder="Tugma matni" value={b.label} onChange={e=>changeButton(i,'label',e.target.value)} required/>
+          <input placeholder="https://..." type="url" value={b.url} onChange={e=>changeButton(i,'url',e.target.value)} required/>
+          <button type="button" onClick={()=>removeButton(i)}>O‘chirish</button>
+        </div>)}
+      </div>
+      <button className="primary" disabled={sending}><Bell size={17}/> {sending?'Yuborilmoqda...':'Hammaga yuborish'}</button>
+      <small>{status}</small>
+    </form>
+  </section>;
+}
 function Users(){const [users,setUsers]=useState<Item[]>([]),[status,setStatus]=useState('');useEffect(()=>{request('/users').then(setUsers)},[]);async function save(u:Item){try{const updated=await request(`/users/${u.id}/balances`,{method:'PATCH',body:JSON.stringify({phpInvest:Number(u.phpInvest??0),primeCapital:Number(u.primeCapital??0)})});setUsers(x=>x.map(i=>i.id===u.id?updated:i));setStatus(`${u.name} balansi saqlandi`)}catch{setStatus('Xatolik')}}function change(id:string,key:'phpInvest'|'primeCapital',value:number){setUsers(x=>x.map(u=>u.id===id?{...u,[key]:value}:u))}return <section className="panel users-panel"><div className="panel-head"><div><h2>Foydalanuvchi balanslari</h2><p>PHP Invest va Prime Capital mablag‘larini individual boshqaring.</p></div><small>{status}</small></div><div className="table-wrap"><table><thead><tr><th>F.I.O</th><th>Telefon</th><th>PHP Invest ($)</th><th>Prime Capital ($)</th><th></th></tr></thead><tbody>{users.filter(u=>u.id!=='admin').map(u=><tr key={u.id}><td><b>{u.name}</b></td><td>{u.phone}</td><td><input type="number" value={u.phpInvest??0} onChange={e=>change(u.id,'phpInvest',+e.target.value)}/></td><td><input type="number" value={u.primeCapital??0} onChange={e=>change(u.id,'primeCapital',+e.target.value)}/></td><td><button className="table-save" onClick={()=>save(u)}>Saqlash</button></td></tr>)}</tbody></table></div></section>}
 function SettingsPanel({onLogout}:{onLogout:()=>void}){const [status,setStatus]=useState('');async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const form=e.currentTarget,f=new FormData(form);if(f.get('newPassword')!==f.get('confirm'))return setStatus('Yangi parollar mos emas');try{await request('/settings/credentials',{method:'POST',body:JSON.stringify({email:f.get('email'),currentPassword:f.get('currentPassword'),newPassword:f.get('newPassword')})});setStatus('Login va parol yangilandi. Qayta kiring.');form.reset();setTimeout(onLogout,1200)}catch{setStatus('Joriy parol noto‘g‘ri yoki server xatosi')}}return <section className="panel form-panel wide-form"><h2>Admin login va parolini o‘zgartirish</h2><form onSubmit={submit}><label>Yangi login (email)<input name="email" type="email" required/></label><label>Joriy parol<input name="currentPassword" type="password" required minLength={6}/></label><label>Yangi parol<input name="newPassword" type="password" required minLength={6}/></label><label>Yangi parolni takrorlang<input name="confirm" type="password" required minLength={6}/></label><button className="primary"><Settings size={17}/> Saqlash</button><small>{status}</small></form><button className="logout-admin" onClick={onLogout}><LogOut size={17}/> Tizimdan chiqish</button></section>}
