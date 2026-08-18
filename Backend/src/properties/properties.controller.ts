@@ -7,15 +7,20 @@ import { PropertiesService } from './properties.service';
 @Controller('properties')
 export class PropertiesController {
   constructor(private readonly properties: PropertiesService) {}
-  @Get() findAll(@Query('type') type?: string, @Query('status') status?: string) { return this.properties.findAll(type, status); }
+  @Get() findAll(@Query('type') type?: string, @Query('status') status?: string, @Query('limit') limit?: string) {
+    return this.properties.findAll(type, status, limit ? Number(limit) : undefined);
+  }
   @Get(':id') findOne(@Param('id') id: string) { return this.properties.findOne(id); }
 
   @UseGuards(JwtAuthGuard) @Roles('admin')
-  @Post() create(@Body() dto: Omit<PropertyListing, 'id'|'createdAt'>) { return this.properties.create(dto); }
+  @Post() create(@Body() dto: Omit<PropertyListing, 'id'|'createdAt'|'views'>) { return this.properties.create(dto); }
 
   @UseGuards(JwtAuthGuard) @Roles('admin')
   @Patch(':id') update(@Param('id') id: string, @Body() dto: Partial<PropertyListing>) { return this.properties.update(id, dto); }
 
   @UseGuards(JwtAuthGuard) @Roles('admin')
   @Delete(':id') remove(@Param('id') id: string) { return this.properties.remove(id); }
+
+  /** Public — called once per card impression from the Website so admins can see which listings actually get looked at. */
+  @Post(':id/view') incrementView(@Param('id') id: string) { return this.properties.incrementView(id); }
 }

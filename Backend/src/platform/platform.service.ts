@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { compare, hash, hashSync } from 'bcryptjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { ChangeCredentialsDto, ContentDto, FinanceEntryDto, LoginDto, MoneyRequestDto, RegisterDto, SupportDto, UserBalancesDto } from './platform.dto';
+import { AboutDto, ChangeCredentialsDto, ContentDto, FinanceEntryDto, LoginDto, MoneyRequestDto, RegisterDto, SupportDto, UserBalancesDto } from './platform.dto';
 
 type RecordItem = Record<string, unknown> & { id: string; createdAt: string; status?: string };
 type Product = 'prime-capital' | 'php-invest';
@@ -35,16 +35,24 @@ export class PlatformService {
   private lastAppliedAt: ProductDate = { 'prime-capital': null, 'php-invest': null };
   /** Full history of every percent change ever applied, oldest first — so growth over time can be reconstructed later, not just the last value. */
   private percentHistory: RecordItem[] = [];
+  /** "Biz haqimizda" (About us) content shown on the Website — admin-editable via PATCH /about instead of being hardcoded in the frontend. */
+  private about: { title: string; body: string } = {
+    title: 'Biz haqimizda',
+    body: 'Prime Capital — ko‘chmas mulk va investitsiya boshqaruvi bo‘yicha ishonchli platforma. Biz mijozlarimizga shaffof va xavfsiz investitsiya imkoniyatlarini taqdim etamiz.',
+  };
 
   constructor(private readonly jwt: JwtService) { this.load(); this.ensureAdminCredentials(); }
   private load() {
     if (!existsSync(this.dataFile)) return;
     try {
-      const data = JSON.parse(readFileSync(this.dataFile, 'utf8')) as Record<string, RecordItem[]> & { lastPercent?: ProductPercent; balanceOverrides?: ProductOverride; lastAppliedAt?: ProductDate };
+      const data = JSON.parse(readFileSync(this.dataFile, 'utf8')) as Record<string, RecordItem[]> & { lastPercent?: ProductPercent; balanceOverrides?: ProductOverride; lastAppliedAt?: ProductDate; about?: { title: string; body: string } };
       for (const key of ['users','banners','videos','notifications','investments','withdrawals','finance','support','percentHistory'] as const) if (Array.isArray(data[key])) this[key] = data[key];
       if (data.lastPercent) this.lastPercent = data.lastPercent;
       if (data.balanceOverrides) this.balanceOverrides = data.balanceOverrides;
       if (data.lastAppliedAt) this.lastAppliedAt = data.lastAppliedAt;
+      if (data.about) this.about = data.about;
+      // Backfill `views` for banners/videos/notifications saved before the view-counter was introduced.
+      for (const item of this.banners) if (typeof item.views !== 'number') item.views = 0;
     } catch { /* Keep safe seed data when storage is invalid. */ }
   }
   /** Keeps the admin login in sync with ADMIN_EMAIL/ADMIN_PASSWORD from .env on every boot, so rotating the password is just an env change + restart. */
@@ -63,7 +71,7 @@ export class PlatformService {
   }
   private save() {
     mkdirSync(dirname(this.dataFile), { recursive: true });
-    writeFileSync(this.dataFile, JSON.stringify({ users:this.users,banners:this.banners,videos:this.videos,notifications:this.notifications,investments:this.investments,withdrawals:this.withdrawals,finance:this.finance,support:this.support,lastPercent:this.lastPercent,balanceOverrides:this.balanceOverrides,lastAppliedAt:this.lastAppliedAt,percentHistory:this.percentHistory }, null, 2));
+    writeFileSync(this.dataFile, JSON.stringify({ users:this.users,banners:this.banners,videos:this.videos,notifications:this.notifications,investments:this.investments,withdrawals:this.withdrawals,finance:this.finance,support:this.support,lastPercent:this.lastPercent,balanceOverrides:this.balanceOverrides,lastAppliedAt:this.lastAppliedAt,percentHistory:this.percentHistory,about:this.about }, null, 2));
   }
   async register(dto: RegisterDto) {
     if (this.users.some((user) => user.email === dto.email)) throw new ConflictException('Email already exists');
@@ -159,9 +167,13 @@ export class PlatformService {
     return { success: true, email: admin.email };
   }
   list(store: 'banners'|'videos'|'notifications'|'investments'|'withdrawals'|'support') { return this[store]; }
-  createContent(store: 'banners'|'videos'|'notifications', dto: ContentDto) { const item = { id: id(), ...dto, status: dto.status ?? 'active', createdAt: now() }; this[store].unshift(item); this.save(); return item; }
-  updateContent(store: 'banners'|'videos'|'notifications', itemId: string, dto: Partial<ContentDto>) { const item = this[store].find((entry) => entry.id === itemId); if (!item) throw new NotFoundException(); Object.assign(item, dto); return item; }
+  createContent(store: 'banners'|'videos'|'notifications', dto: ContentDto) { const item = { id: id(), ...dto, status: dto.status ?? 'active', views: 0, createdAt: now() }; this[store].unshift(item); this.save(); return item; }
+  updateContent(store: 'banners'|'videos'|'notifications', itemId: string, dto: Partial<ContentDto>) { const item = this[store].find((entry) => entry.id === itemId); if (!item) throw new NotFoundException(); Object.assign(item, dto); this.save(); return item; }
   removeContent(store: 'banners'|'videos'|'notifications', itemId: string) { const index = this[store].findIndex((entry) => entry.id === itemId); if (index < 0) throw new NotFoundException(); const removed=this[store].splice(index, 1)[0]; this.save(); return removed; }
+  /** Public view counter for promotions/banners — same pattern as PropertiesService.incrementView. */
+  incrementContentView(store: 'banners'|'videos'|'notifications', itemId: string) { const item = this[store].find((entry) => entry.id === itemId); if (!item) throw new NotFoundException(); item.views = Number(item.views ?? 0) + 1; this.save(); return item; }
+  getAbout() { return this.about; }
+  updateAbout(dto: AboutDto) { this.about = { ...this.about, ...dto }; this.save(); return this.about; }
   createMoney(store: 'investments'|'withdrawals', dto: MoneyRequestDto) { const item = { id: id(), ...dto, status: 'pending', createdAt: now() }; this[store].unshift(item); this.save(); return item; }
   updateStatus(store: 'investments'|'withdrawals'|'support', itemId: string, status: string) { const item = this[store].find((entry) => entry.id === itemId); if (!item) throw new NotFoundException(); item.status = status; this.save(); return item; }
   listFinance(userId?: string) { return userId ? this.finance.filter((entry) => entry.userId === userId) : this.finance; }

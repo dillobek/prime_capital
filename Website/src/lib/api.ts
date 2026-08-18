@@ -10,9 +10,12 @@ export type PropertyListing = {
   area: number;
   status: 'active' | 'pending' | 'inactive';
   createdAt: string;
+  views: number;
 };
 
-export type ContentItem = { id: string; title: string; description?: string; url?: string; imageUrl?: string };
+export type ContentItem = { id: string; title: string; description?: string; url?: string; imageUrl?: string; views?: number };
+
+export type AboutContent = { title: string; body: string };
 
 // These run from client components (pages here are 'use client' for i18n), so use the
 // browser-exposed NEXT_PUBLIC_API_URL — same convention as Webapp/src/components/web-app.tsx.
@@ -28,14 +31,27 @@ async function safeFetch<T>(path: string, fallback: T): Promise<T> {
   }
 }
 
-export async function getProperties(params?: { type?: string; status?: string }): Promise<PropertyListing[]> {
+export async function getProperties(params?: { type?: string; status?: string; limit?: number }): Promise<PropertyListing[]> {
   const query = new URLSearchParams();
   if (params?.type) query.set('type', params.type);
   if (params?.status) query.set('status', params.status);
+  if (params?.limit) query.set('limit', String(params.limit));
   const qs = query.toString();
   return safeFetch<PropertyListing[]>(`/properties${qs ? `?${qs}` : ''}`, []);
 }
 
 export async function getBanners(): Promise<ContentItem[]> {
   return safeFetch<ContentItem[]>('/banners', []);
+}
+
+export async function getAbout(): Promise<AboutContent> {
+  return safeFetch<AboutContent>('/about', { title: '', body: '' });
+}
+
+/** Fire-and-forget impression counters — admin panel shows these as "ko'rishlar" per listing/promotion. */
+export function trackPropertyView(id: string) {
+  fetch(`${base}/properties/${id}/view`, { method: 'POST' }).catch(() => {});
+}
+export function trackBannerView(id: string) {
+  fetch(`${base}/banners/${id}/view`, { method: 'POST' }).catch(() => {});
 }

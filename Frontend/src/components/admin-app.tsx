@@ -1,6 +1,6 @@
 'use client';
 import { FormEvent, useEffect, useState } from 'react';
-import { Banknote, Bell, BookOpen, Building2, CircleUserRound, Gauge, Headphones, Image, LogOut, Plus, Search, Settings, ShieldCheck, UsersRound, WalletCards } from 'lucide-react';
+import { Banknote, Bell, BookOpen, Building2, CircleUserRound, Eye, FileText, Gauge, Headphones, Image, LogOut, Plus, Search, Settings, ShieldCheck, UsersRound, WalletCards } from 'lucide-react';
 import type { DashboardSummary, PropertyListing } from '@prime/contracts';
 import { BalanceChart } from './chart'; import { BalanceEditor } from './balance-editor'; import { PropertyTable } from './property-table';
 const API='/api';
@@ -11,10 +11,10 @@ function LogoMark(){
   </svg>;
 }
 const TOKEN_KEY='prime_admin_token';
-type Section='dashboard'|'balances'|'properties'|'banners'|'videos'|'notifications'|'requests'|'support'|'users'|'settings';
-type Item=Record<string,unknown>&{id:string;title?:string;description?:string;name?:string;phone?:string;phpInvest?:number;primeCapital?:number;url?:string};
+type Section='dashboard'|'balances'|'properties'|'about'|'banners'|'videos'|'notifications'|'requests'|'support'|'users'|'settings';
+type Item=Record<string,unknown>&{id:string;title?:string;description?:string;name?:string;phone?:string;phpInvest?:number;primeCapital?:number;url?:string;views?:number};
 type AdminUser={id:string;name:string;email:string};
-const menu:[Section,string,typeof Gauge][]=[['dashboard','Dashboard',Gauge],['balances','Balanslar',WalletCards],['properties','Kvartiralar',Building2],['banners','Bannerlar',Image],['videos','Video darslar',BookOpen],['notifications','Bildirishnomalar',Bell],['requests','So‘rovlar',Banknote],['support','Support',Headphones],['users','Foydalanuvchilar',UsersRound],['settings','Sozlamalar',Settings]];
+const menu:[Section,string,typeof Gauge][]=[['dashboard','Dashboard',Gauge],['balances','Balanslar',WalletCards],['properties','Kvartiralar',Building2],['about','Biz haqimizda',FileText],['banners','Aktsiyalar',Image],['videos','Video darslar',BookOpen],['notifications','Bildirishnomalar',Bell],['requests','So‘rovlar',Banknote],['support','Support',Headphones],['users','Foydalanuvchilar',UsersRound],['settings','Sozlamalar',Settings]];
 const money=(n:number)=>new Intl.NumberFormat('uz-UZ',{maximumFractionDigits:2}).format(n);
 /** Prime Capital / PHP Invest balances are always denominated in USD, never so'm — matches how the Users panel already labels them. */
 const usd=(n:number)=>`$${new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(n)}`;
@@ -42,7 +42,7 @@ export function AdminApp({dashboard}:{dashboard:DashboardSummary}){
   },[]);
   if(!mounted||checking)return <div className="app-shell"/>;
   if(!user)return <Login onSuccess={(u)=>setUser(u)}/>;
-  return <div className="app-shell"><aside className="sidebar"><div className="brand"><LogoMark/><div><strong>PRIME</strong><span>CAPITAL</span></div></div><nav>{menu.map(([id,label,Icon])=><button key={id} onClick={()=>setSection(id)} className={section===id?'active':''}><Icon size={20}/><span>{label}</span></button>)}</nav><div className="admin-mini"><CircleUserRound size={38}/><div><strong>{user.name}</strong><span>Super Admin</span></div></div></aside><main><header><div><h1>{menu.find(i=>i[0]===section)?.[1]}</h1><p>Prime Capital platformasini boshqaring</p></div><div className="header-tools"><label><Search size={18}/><input placeholder="Qidirish..."/></label><button className="notification"><Bell size={20}/><span>1</span></button><div className="avatar">AD</div><strong>{user.email}</strong></div></header><div className="content">{section==='dashboard'?<Dashboard data={dashboard}/>:null}{section==='balances'?<Balances data={dashboard}/>:null}{section==='properties'?<PropertiesManager/>:null}{section==='banners'?<ContentManager type="banners" title="Bannerlar" image/>:null}{section==='videos'?<ContentManager type="videos" title="Video darslar"/>:null}{section==='notifications'?<Notifications/>:null}{section==='requests'?<Requests/>:null}{section==='support'?<Support/>:null}{section==='users'?<Users/>:null}{section==='settings'?<SettingsPanel onLogout={()=>{clearToken();setUser(null)}}/>:null}</div></main></div>
+  return <div className="app-shell"><aside className="sidebar"><div className="brand"><LogoMark/><div><strong>PRIME</strong><span>CAPITAL</span></div></div><nav>{menu.map(([id,label,Icon])=><button key={id} onClick={()=>setSection(id)} className={section===id?'active':''}><Icon size={20}/><span>{label}</span></button>)}</nav><div className="admin-mini"><CircleUserRound size={38}/><div><strong>{user.name}</strong><span>Super Admin</span></div></div></aside><main><header><div><h1>{menu.find(i=>i[0]===section)?.[1]}</h1><p>Prime Capital platformasini boshqaring</p></div><div className="header-tools"><label><Search size={18}/><input placeholder="Qidirish..."/></label><button className="notification"><Bell size={20}/><span>1</span></button><div className="avatar">AD</div><strong>{user.email}</strong></div></header><div className="content">{section==='dashboard'?<Dashboard data={dashboard}/>:null}{section==='balances'?<Balances data={dashboard}/>:null}{section==='properties'?<PropertiesManager/>:null}{section==='about'?<AboutEditor/>:null}{section==='banners'?<ContentManager type="banners" title="Aktsiyalar" image/>:null}{section==='videos'?<ContentManager type="videos" title="Video darslar"/>:null}{section==='notifications'?<Notifications/>:null}{section==='requests'?<Requests/>:null}{section==='support'?<Support/>:null}{section==='users'?<Users/>:null}{section==='settings'?<SettingsPanel onLogout={()=>{clearToken();setUser(null)}}/>:null}</div></main></div>
 }
 function Login({onSuccess}:{onSuccess:(user:AdminUser)=>void}){
   const [status,setStatus]=useState('');
@@ -102,7 +102,29 @@ function Balances({data}:{data:DashboardSummary}){
     {!history.length?<div className="empty-state">Hozircha tarix yo‘q.</div>:null}
   </section></div>;
 }
-function ContentManager({type,title,image=false}:{type:'banners'|'videos';title:string;image?:boolean}){const [list,setList]=useState<Item[]>([]),[status,setStatus]=useState('');useEffect(()=>{request(`/${type}`).then(setList).catch(()=>setList([]))},[type]);async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const form=e.currentTarget,f=new FormData(form),body={title:f.get('title'),description:f.get('description'),url:f.get('url'),imageUrl:f.get('imageUrl'),status:'active'};try{const created=await request(`/${type}`,{method:'POST',body:JSON.stringify(body)});setList(x=>[created,...x]);form.reset();setStatus('Saqlandi')}catch{setStatus('Saqlashda xatolik')}}async function remove(id:string){await request(`/${type}/${id}`,{method:'DELETE'});setList(x=>x.filter(i=>i.id!==id))}return <div className="admin-grid"><section className="panel form-panel"><h2>Yangi {title.toLowerCase()} qo‘shish</h2><form onSubmit={submit}><label>Sarlavha<input name="title" required/></label><label>Tavsif<textarea name="description" rows={4}/></label>{image?<label>Rasm URL<input name="imageUrl" type="url" placeholder="https://..."/></label>:null}<label>{image?'Yo‘naltirish URL':'YouTube URL'}<input name="url" type="url" required placeholder="https://youtube.com/..."/></label><button className="primary"><Plus size={17}/> Qo‘shish</button><small>{status}</small></form></section><section className="panel list-panel"><h2>{title} ro‘yxati</h2>{list.map(i=><article className="content-row" key={i.id}><div><strong>{i.title}</strong><p>{i.description as string}</p><a href={i.url as string} target="_blank">{i.url as string}</a></div><button onClick={()=>remove(i.id)}>O‘chirish</button></article>)}{!list.length?<div className="empty-state">Hozircha ma’lumot yo‘q.</div>:null}</section></div>}
+function ContentManager({type,title,image=false}:{type:'banners'|'videos';title:string;image?:boolean}){const [list,setList]=useState<Item[]>([]),[status,setStatus]=useState('');useEffect(()=>{request(`/${type}`).then(setList).catch(()=>setList([]))},[type]);async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const form=e.currentTarget,f=new FormData(form),body={title:f.get('title'),description:f.get('description'),url:f.get('url'),imageUrl:f.get('imageUrl'),status:'active'};try{const created=await request(`/${type}`,{method:'POST',body:JSON.stringify(body)});setList(x=>[created,...x]);form.reset();setStatus('Saqlandi')}catch{setStatus('Saqlashda xatolik')}}async function remove(id:string){await request(`/${type}/${id}`,{method:'DELETE'});setList(x=>x.filter(i=>i.id!==id))}return <div className="admin-grid"><section className="panel form-panel"><h2>Yangi {title.toLowerCase()} qo‘shish</h2><form onSubmit={submit}><label>Sarlavha<input name="title" required/></label><label>Tavsif<textarea name="description" rows={4}/></label>{image?<label>Rasm URL<input name="imageUrl" type="url" placeholder="https://..."/></label>:null}<label>{image?'Yo‘naltirish URL':'YouTube URL'}<input name="url" type="url" required placeholder="https://youtube.com/..."/></label><button className="primary"><Plus size={17}/> Qo‘shish</button><small>{status}</small></form></section><section className="panel list-panel"><h2>{title} ro‘yxati</h2>{list.map(i=><article className="content-row" key={i.id}><div><strong>{i.title}</strong><p>{i.description as string}</p><a href={i.url as string} target="_blank">{i.url as string}</a><span className="views-badge"><Eye size={14}/> {Number(i.views??0)} ko‘rishlar</span></div><button onClick={()=>remove(i.id)}>O‘chirish</button></article>)}{!list.length?<div className="empty-state">Hozircha ma’lumot yo‘q.</div>:null}</section></div>}
+function AboutEditor(){
+  const [status,setStatus]=useState('');
+  const [loaded,setLoaded]=useState(false);
+  const [about,setAbout]=useState<{title:string;body:string}>({title:'',body:''});
+  useEffect(()=>{request('/about').then((data)=>{setAbout(data);setLoaded(true)}).catch(()=>setLoaded(true))},[]);
+  async function submit(e:FormEvent<HTMLFormElement>){
+    e.preventDefault();
+    const form=e.currentTarget,f=new FormData(form);
+    const body={title:String(f.get('title')??''),body:String(f.get('body')??'')};
+    setStatus('Saqlanmoqda...');
+    try{const updated=await request('/about',{method:'PATCH',body:JSON.stringify(body)});setAbout(updated);setStatus('Saqlandi — websaytda darhol yangilanadi')}catch{setStatus('Saqlashda xatolik')}
+  }
+  if(!loaded)return <section className="panel form-panel wide-form"><h2>Biz haqimizda</h2><div className="empty-state">Yuklanmoqda...</div></section>;
+  return <section className="panel form-panel wide-form"><h2>Biz haqimizda matnini tahrirlash</h2><p>Bu yerdagi matn Website’ning “Biz haqimizda” sahifasida to‘g‘ridan-to‘g‘ri ko‘rinadi.</p>
+    <form onSubmit={submit}>
+      <label>Sarlavha<input name="title" defaultValue={about.title} required/></label>
+      <label>Matn<textarea name="body" rows={8} defaultValue={about.body} required/></label>
+      <button className="primary"><FileText size={17}/> Saqlash</button>
+      <small>{status}</small>
+    </form>
+  </section>;
+}
 function PropertiesManager(){
   const [list,setList]=useState<PropertyListing[]>([]),[status,setStatus]=useState('');
   useEffect(()=>{request('/properties').then(setList).catch(()=>setList([]))},[]);
@@ -123,7 +145,7 @@ function PropertiesManager(){
     <label>Maydoni (m²)<input name="area" type="number" required min={1}/></label>
     <button className="primary"><Plus size={17}/> Qo‘shish</button><small>{status}</small>
   </form></section>
-  <section className="panel list-panel"><h2>Kvartiralar ro‘yxati</h2>{list.map(item=><article className="content-row" key={item.id}><div><strong>{item.title}</strong><p>{item.location} · {usd(item.price)} · {item.rooms} xona</p><select value={item.status} onChange={(e)=>changeStatus(item.id,e.target.value)}><option value="active">Faol</option><option value="pending">Kutilmoqda</option><option value="inactive">Nofaol</option></select></div><button onClick={()=>remove(item.id)}>O‘chirish</button></article>)}{!list.length?<div className="empty-state">Hozircha kvartira yo‘q.</div>:null}</section></div>
+  <section className="panel list-panel"><h2>Kvartiralar ro‘yxati</h2>{list.map(item=><article className="content-row" key={item.id}><div><strong>{item.title}</strong><p>{item.type==='new-build'?'Novostroyka':'Ikkilamchi'} · {item.location} · {usd(item.price)} · {item.rooms} xona</p><span className="views-badge"><Eye size={14}/> {item.views??0} ko‘rishlar</span><select value={item.status} onChange={(e)=>changeStatus(item.id,e.target.value)}><option value="active">Faol</option><option value="pending">Kutilmoqda</option><option value="inactive">Nofaol</option></select></div><button onClick={()=>remove(item.id)}>O‘chirish</button></article>)}{!list.length?<div className="empty-state">Hozircha kvartira yo‘q.</div>:null}</section></div>
 }
 function Requests(){
   const [tab,setTab]=useState<'investments'|'withdrawals'>('investments');

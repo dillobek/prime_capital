@@ -1,8 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import { useLang, LanguageSwitcher } from '@/lib/i18n';
-import { getToken, clearToken, decodeEmail } from '@/lib/auth';
 
 const webapp = 'https://t.me/Prime_capital_bot';
 
@@ -30,17 +28,6 @@ export function Logo() {
 
 export function Header() {
   const { t } = useLang();
-  const [email, setEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    const token = getToken();
-    if (token) setEmail(decodeEmail(token));
-  }, []);
-
-  function logout() {
-    clearToken();
-    setEmail(null);
-  }
 
   return (
     <header id="top">
@@ -54,18 +41,6 @@ export function Header() {
       </nav>
       <div className="header-actions">
         <LanguageSwitcher />
-        {email ? (
-          <div className="account-chip">
-            <span>{email}</span>
-            <button className="outline small" onClick={logout}>
-              {t('nav.logout')}
-            </button>
-          </div>
-        ) : (
-          <Link className="outline small" href="/login">
-            {t('nav.login')}
-          </Link>
-        )}
         <a className="button" href={webapp}>
           {t('nav.openApp')}
         </a>

@@ -49,3 +49,7 @@ export class ChangeCredentialsDto {
   @IsString() @MinLength(6) currentPassword!: string;
   @IsString() @MinLength(6) newPassword!: string;
 }
+export class AboutDto {
+  @IsOptional() @IsString() title?: string;
+  @IsOptional() @IsString() body?: string;
+}

@@ -2,7 +2,7 @@ import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, 
 import { AuthedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { verifyTelegramInitData } from '../telegram/verify-init-data';
-import { ApplyPercentDto, ChangeCredentialsDto, ContentDto, FinanceEntryDto, LoginDto, MoneyRequestDto, RegisterDto, StatusDto, SupportDto, TelegramAuthDto, UserBalancesDto } from './platform.dto';
+import { AboutDto, ApplyPercentDto, ChangeCredentialsDto, ContentDto, FinanceEntryDto, LoginDto, MoneyRequestDto, RegisterDto, StatusDto, SupportDto, TelegramAuthDto, UserBalancesDto } from './platform.dto';
 import { PlatformService } from './platform.service';
 
 @Controller()
@@ -52,11 +52,17 @@ export class PlatformController {
     return this.service.updateProfile(id, dto);
   }
 
+  // --- Public: "Biz haqimizda" (About us) content — editable from the admin panel instead of hardcoded on the Website. ---
+  @Get('about') about() { return this.service.getAbout(); }
+  @UseGuards(JwtAuthGuard) @Roles('admin') @Patch('about') updateAbout(@Body() dto: AboutDto) { return this.service.updateAbout(dto); }
+
   // --- Public read / admin write: marketing content ---
   @Get('banners') banners() { return this.service.list('banners'); }
   @UseGuards(JwtAuthGuard) @Roles('admin') @Post('banners') createBanner(@Body() dto: ContentDto) { return this.service.createContent('banners', dto); }
   @UseGuards(JwtAuthGuard) @Roles('admin') @Patch('banners/:id') updateBanner(@Param('id') id: string, @Body() dto: Partial<ContentDto>) { return this.service.updateContent('banners', id, dto); }
   @UseGuards(JwtAuthGuard) @Roles('admin') @Delete('banners/:id') removeBanner(@Param('id') id: string) { return this.service.removeContent('banners', id); }
+  /** Public — called once per card impression from the Website's Promotions page. */
+  @Post('banners/:id/view') incrementBannerView(@Param('id') id: string) { return this.service.incrementContentView('banners', id); }
 
   @Get('videos') videos() { return this.service.list('videos'); }
   @UseGuards(JwtAuthGuard) @Roles('admin') @Post('videos') createVideo(@Body() dto: ContentDto) { return this.service.createContent('videos', dto); }

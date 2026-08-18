@@ -20,6 +20,8 @@ export interface PropertyListing {
   area: number;
   status: PropertyStatus;
   createdAt: string;
+  /** Public page-view counter — incremented via POST /properties/:id/view, shown in the admin panel. */
+  views: number;
 }
 
 export interface DashboardSummary {
