@@ -75,7 +75,7 @@ export function WebApp({balances,properties,banners,videos}:{balances:Balance[];
   if(checking)return <div className="webapp"/>;
   if(!profile)return <AuthScreen onSuccess={()=>{setChecking(true);loadProfile()}}/>;
 
-  return <div className="webapp"><header className="top"><div className="logo"><LogoMark className="logo-mark"/><span><b>PRIME</b><small>CAPITAL</small></span></div><div className="top-actions"><LanguageSwitcher className="lang-switcher"/><button aria-label={t('wa.notifications.title')} onClick={()=>setShowNotifications(x=>!x)}><Bell/>{notifications.length?<em/>:null}</button></div></header>
+  return <div className="webapp"><header className="top"><div className="logo"><LogoMark className="logo-mark"/><span><b>PRIME</b><small>CAPITAL</small></span></div><button aria-label={t('wa.notifications.title')} onClick={()=>setShowNotifications(x=>!x)}><Bell/>{notifications.length?<em/>:null}</button></header>
   {showNotifications?<NotificationsPanel items={notifications} onClose={()=>setShowNotifications(false)}/>:null}
   <main>
     {tab==='home'?<HomeScreen balances={myBalances(profile,balances)} properties={properties} banners={banners} onInvest={()=>setModal('invest')} onWithdraw={()=>setModal('withdraw')} onSupport={()=>setModal('support')} onVideos={()=>setModal('videos')}/>:null}
@@ -125,7 +125,7 @@ function AuthScreen({onSuccess}:{onSuccess:()=>void}){
     finally{setLoading(false)}
   }
   return <div className="auth-screen"><div className="auth-card">
-    <div className="auth-head"><div className="logo"><LogoMark className="logo-mark"/><span><b>PRIME</b><small>CAPITAL</small></span></div><LanguageSwitcher className="lang-switcher"/></div>
+    <div className="logo"><LogoMark className="logo-mark"/><span><b>PRIME</b><small>CAPITAL</small></span></div>
     <div className="auth-tabs"><button className={mode==='login'?'active':''} onClick={()=>setMode('login')}>{t('wa.auth.login')}</button><button className={mode==='register'?'active':''} onClick={()=>setMode('register')}>{t('wa.auth.register')}</button></div>
     <form onSubmit={submit}>
       {mode==='register'?<label>{t('wa.auth.fullName')}<input name="name" required/></label>:null}
@@ -186,7 +186,8 @@ function ProfileScreen({profile,onSupport,onVideos,onLogout}:{profile:Profile;on
   const { t } = useLang();
   const balances:Balance[]=[{id:'prime-capital',name:'Prime Capital',amount:profile.primeCapital,monthlyChange:0,updatedAt:new Date().toISOString()},{id:'php-invest',name:'PHP Invest',amount:profile.phpInvest,monthlyChange:0,updatedAt:new Date().toISOString()}];
   const items:[string,(()=>void)?][]=[[t('wa.profile.myInfo')],[t('wa.support.title'),onSupport],[t('wa.profile.myAssets')],[`${t('wa.profile.phpInvestBalance')}: ${usd(profile.phpInvest)}`],[`${t('wa.profile.primeCapitalBalance')}: ${usd(profile.primeCapital)}`],[t('wa.videos.title'),onVideos]];
-  return <section className="page profile-page"><div className="profile-head">{profile.photoUrl?<img className="profile-photo" src={profile.photoUrl} alt={profile.name}/>:<CircleUserRound/>}<div><h1>{profile.name}</h1><p>{profile.email}</p></div><LanguageSwitcher className="lang-switcher"/></div>
+  return <section className="page profile-page"><div className="profile-head">{profile.photoUrl?<img className="profile-photo" src={profile.photoUrl} alt={profile.name}/>:<CircleUserRound/>}<div><h1>{profile.name}</h1><p>{profile.email}</p></div></div>
+    <div className="profile-lang-row"><span>{t('wa.profile.language')}</span><LanguageSwitcher className="lang-switcher"/></div>
     {items.map(([label,onClick])=><button key={label} onClick={onClick}>{label}<span>›</span></button>)}
     <button className="logout" onClick={onLogout}>{t('nav.logout')}</button>
     <small>{t('wa.profile.totalBalance')}: {usd(balances.reduce((s,b)=>s+b.amount,0))}</small></section>}
