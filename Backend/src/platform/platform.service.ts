@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { compare, hash, hashSync } from 'bcryptjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { AboutDto, ChangeCredentialsDto, ContentDto, FinanceEntryDto, LoginDto, MoneyRequestDto, RegisterDto, SupportDto, UserBalancesDto } from './platform.dto';
+import { AboutDto, ChangeCredentialsDto, ContentDto, FinanceEntryDto, LoginDto, MoneyRequestDto, PromotionReportDto, RegisterDto, SupportDto, UserBalancesDto } from './platform.dto';
 
 type RecordItem = Record<string, unknown> & { id: string; createdAt: string; status?: string };
 type Product = 'prime-capital' | 'php-invest';
@@ -27,6 +27,7 @@ export class PlatformService {
   private withdrawals: RecordItem[] = [];
   private finance: RecordItem[] = [];
   private support: RecordItem[] = [];
+  private promotionReports: RecordItem[] = [];
   /** Last percent an admin applied to each product via applyPercent() — shown as the "monthly change" on real balance cards, never a fake number. */
   private lastPercent: ProductPercent = { 'prime-capital': 0, 'php-invest': 0 };
   /** Optional admin-set headline amount for a product's dashboard card. When null, the card shows the real sum of every user's balance. */
@@ -46,7 +47,7 @@ export class PlatformService {
     if (!existsSync(this.dataFile)) return;
     try {
       const data = JSON.parse(readFileSync(this.dataFile, 'utf8')) as Record<string, RecordItem[]> & { lastPercent?: ProductPercent; balanceOverrides?: ProductOverride; lastAppliedAt?: ProductDate; about?: { title: string; body: string } };
-      for (const key of ['users','banners','videos','notifications','investments','withdrawals','finance','support','percentHistory'] as const) if (Array.isArray(data[key])) this[key] = data[key];
+      for (const key of ['users','banners','videos','notifications','investments','withdrawals','finance','support','promotionReports','percentHistory'] as const) if (Array.isArray(data[key])) this[key] = data[key];
       if (data.lastPercent) this.lastPercent = data.lastPercent;
       if (data.balanceOverrides) this.balanceOverrides = data.balanceOverrides;
       if (data.lastAppliedAt) this.lastAppliedAt = data.lastAppliedAt;
@@ -71,7 +72,7 @@ export class PlatformService {
   }
   private save() {
     mkdirSync(dirname(this.dataFile), { recursive: true });
-    writeFileSync(this.dataFile, JSON.stringify({ users:this.users,banners:this.banners,videos:this.videos,notifications:this.notifications,investments:this.investments,withdrawals:this.withdrawals,finance:this.finance,support:this.support,lastPercent:this.lastPercent,balanceOverrides:this.balanceOverrides,lastAppliedAt:this.lastAppliedAt,percentHistory:this.percentHistory,about:this.about }, null, 2));
+    writeFileSync(this.dataFile, JSON.stringify({ users:this.users,banners:this.banners,videos:this.videos,notifications:this.notifications,investments:this.investments,withdrawals:this.withdrawals,finance:this.finance,support:this.support,promotionReports:this.promotionReports,lastPercent:this.lastPercent,balanceOverrides:this.balanceOverrides,lastAppliedAt:this.lastAppliedAt,percentHistory:this.percentHistory,about:this.about }, null, 2));
   }
   async register(dto: RegisterDto) {
     if (this.users.some((user) => user.email === dto.email)) throw new ConflictException('Email already exists');
@@ -180,4 +181,7 @@ export class PlatformService {
   createFinance(dto: FinanceEntryDto) { const item = { id: id(), ...dto, date: dto.date ?? now(), createdAt: now() }; this.finance.unshift(item); this.save(); return item; }
   removeFinance(itemId: string) { const index = this.finance.findIndex((entry) => entry.id === itemId); if (index < 0) throw new NotFoundException(); const removed = this.finance.splice(index, 1)[0]; this.save(); return removed; }
   createSupport(dto: SupportDto) { const item = { id: id(), ...dto, status: 'pending', createdAt: now() }; this.support.unshift(item); this.save(); return item; }
+  createPromotionReport(userId: string, dto: PromotionReportDto) { if (!dto.confirmed) throw new ConflictException('Investitsiya tasdig‘i kerak'); const item = { id: id(), ...dto, userId, status: 'pending', createdAt: now() }; this.promotionReports.unshift(item); this.save(); return item; }
+  listPromotionReports() { return this.promotionReports; }
+  approvePromotionReport(itemId: string, status: 'approved' | 'rejected') { const item = this.promotionReports.find((entry) => entry.id === itemId); if (!item) throw new NotFoundException(); if (item.status !== 'pending') throw new ConflictException('Hisobot allaqachon ko‘rib chiqilgan'); item.status = status; if (status === 'approved') { const user = this.users.find((entry) => entry.id === item.userId); if (!user) throw new NotFoundException('User topilmadi'); const field = item.product === 'prime-capital' ? 'primeCapital' : 'phpInvest'; user[field] = Number(user[field] ?? 0) + Number(item.amount); } this.save(); return item; }
 }

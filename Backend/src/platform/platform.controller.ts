@@ -2,7 +2,7 @@ import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, 
 import { AuthedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { verifyTelegramInitData } from '../telegram/verify-init-data';
-import { AboutDto, ApplyPercentDto, ChangeCredentialsDto, ContentDto, FinanceEntryDto, LoginDto, MoneyRequestDto, RegisterDto, StatusDto, SupportDto, TelegramAuthDto, UserBalancesDto } from './platform.dto';
+import { AboutDto, ApplyPercentDto, ChangeCredentialsDto, ContentDto, FinanceEntryDto, LoginDto, MoneyRequestDto, PromotionReportDto, RegisterDto, StatusDto, SupportDto, TelegramAuthDto, UserBalancesDto } from './platform.dto';
 import { PlatformService } from './platform.service';
 
 @Controller()
@@ -119,4 +119,8 @@ export class PlatformController {
 
   @UseGuards(JwtAuthGuard) @Roles('admin')
   @Patch('support/:id/status') supportStatus(@Param('id') id: string, @Body() dto: StatusDto) { return this.service.updateStatus('support', id, dto.status); }
+
+  @UseGuards(JwtAuthGuard) @Post('promotion-reports') createPromotionReport(@Body() dto: PromotionReportDto, @Req() req: AuthedRequest) { return this.service.createPromotionReport(req.user!.sub, dto); }
+  @UseGuards(JwtAuthGuard) @Roles('admin') @Get('promotion-reports') promotionReports() { return this.service.listPromotionReports(); }
+  @UseGuards(JwtAuthGuard) @Roles('admin') @Patch('promotion-reports/:id/status') promotionReportStatus(@Param('id') id: string, @Body() dto: StatusDto) { if (dto.status !== 'approved' && dto.status !== 'rejected') throw new ForbiddenException('Faqat tasdiqlash yoki rad etish mumkin'); return this.service.approvePromotionReport(id, dto.status); }
 }

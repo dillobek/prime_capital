@@ -51,7 +51,7 @@ export function WebApp({balances,properties,banners,videos}:{balances:Balance[];
   const [checking,setChecking]=useState(true);
   const [profile,setProfile]=useState<Profile|null>(null);
   const [tab,setTab]=useState<Tab>('home');
-  const [modal,setModal]=useState<'invest'|'withdraw'|'support'|'videos'|null>(null);
+  const [modal,setModal]=useState<'invest'|'withdraw'|'support'|'videos'|'promotion'|null>(null);
   const [notifications,setNotifications]=useState<ContentItem[]>([]);
   const [showNotifications,setShowNotifications]=useState(false);
 
@@ -82,12 +82,13 @@ export function WebApp({balances,properties,banners,videos}:{balances:Balance[];
     {tab==='home'?<HomeScreen balances={myBalances(profile,balances)} properties={properties} banners={banners} onInvest={()=>setModal('invest')} onWithdraw={()=>setModal('withdraw')} onSupport={()=>setModal('support')} onVideos={()=>setModal('videos')}/>:null}
     {tab==='apartments'?<ApartmentsScreen properties={properties}/>:null}
     {tab==='finance'?<FinanceScreen/>:null}
-    {tab==='profile'?<ProfileScreen profile={profile} onSupport={()=>setModal('support')} onVideos={()=>setModal('videos')} onLogout={()=>{clearToken();setProfile(null)}}/>:null}
+    {tab==='profile'?<ProfileScreen profile={profile} onSupport={()=>setModal('support')} onVideos={()=>setModal('videos')} onPromotion={()=>setModal('promotion')} onLogout={()=>{clearToken();setProfile(null)}}/>:null}
   </main><nav className="bottom-nav">{navItems.map(([Icon,id,label])=><button className={tab===id?'active':''} onClick={()=>setTab(id)} key={id}><Icon/><span>{label}</span></button>)}</nav>
   {modal==='invest'?<MoneyModal title={t('wa.money.investTitle')} action="investments" onClose={()=>setModal(null)}/>:null}
   {modal==='withdraw'?<MoneyModal title={t('wa.money.withdrawTitle')} action="withdrawals" onClose={()=>setModal(null)}/>:null}
   {modal==='support'?<SupportModal onClose={()=>setModal(null)}/>:null}
   {modal==='videos'?<VideosModal items={videos} onClose={()=>setModal(null)}/>:null}
+  {modal==='promotion'?<PromotionModal onClose={()=>setModal(null)}/>:null}
   </div>
 }
 
@@ -195,10 +196,10 @@ function FinanceScreen(){
     {loading?<div className="empty-state">{t('wa.finance.loading')}</div>:entries.length?entries.map((item)=><div className="entry" key={item.id}><i className={item.type}/><div><b>{item.category}</b><span>{item.type==='income'?t('wa.finance.income'):t('wa.finance.expense')}</span></div><strong className={item.type}>{item.type==='income'?'+':'-'}{money(item.amount)}</strong></div>):<div className="empty-state">{t('wa.finance.empty')}</div>}
   </section>}
 
-function ProfileScreen({profile,onSupport,onVideos,onLogout}:{profile:Profile;onSupport:()=>void;onVideos:()=>void;onLogout:()=>void}){
+function ProfileScreen({profile,onSupport,onVideos,onPromotion,onLogout}:{profile:Profile;onSupport:()=>void;onVideos:()=>void;onPromotion:()=>void;onLogout:()=>void}){
   const { t } = useLang();
   const balances:Balance[]=[{id:'prime-capital',name:'Prime Capital',amount:profile.primeCapital,monthlyChange:0,updatedAt:new Date().toISOString()},{id:'php-invest',name:'PHP Invest',amount:profile.phpInvest,monthlyChange:0,updatedAt:new Date().toISOString()}];
-  const items:[string,(()=>void)?][]=[[t('wa.profile.myInfo')],[t('wa.support.title'),onSupport],[t('wa.profile.myAssets')],[`${t('wa.profile.phpInvestBalance')}: ${usd(profile.phpInvest)}`],[`${t('wa.profile.primeCapitalBalance')}: ${usd(profile.primeCapital)}`],[t('wa.videos.title'),onVideos]];
+  const items:[string,(()=>void)?][]=[[t('wa.profile.myInfo')],[t('wa.support.title'),onSupport],[t('wa.profile.myAssets')],[`${t('wa.profile.phpInvestBalance')}: ${usd(profile.phpInvest)}`],[`${t('wa.profile.primeCapitalBalance')}: ${usd(profile.primeCapital)}`],[t('wa.videos.title'),onVideos],['Aksiya haqida xabar berish',onPromotion]];
   return <section className="page profile-page"><div className="profile-head">{profile.photoUrl?<img className="profile-photo" src={profile.photoUrl} alt={profile.name}/>:<CircleUserRound/>}<div><h1>{profile.name}</h1><p>{profile.email}</p></div></div>
     <div className="profile-lang-row"><span>{t('wa.profile.language')}</span><LanguageSwitcher className="lang-switcher"/></div>
     {items.map(([label,onClick])=><button key={label} onClick={onClick}>{label}<span>›</span></button>)}
@@ -229,6 +230,8 @@ function MoneyModal({title,action,onClose}:{title:string;action:'investments'|'w
     </form>}
   </div></div>
 }
+
+function PromotionModal({onClose}:{onClose:()=>void}){ const [status,setStatus]=useState(''); const [done,setDone]=useState(false); async function submit(e:FormEvent<HTMLFormElement>){ e.preventDefault(); const f=new FormData(e.currentTarget); const files=Array.from((f.get('images') as FileList)??[]); if(files.length<1||files.length>5){setStatus('1 dan 5 tagacha rasm tanlang');return;} setStatus('Yuborilmoqda…'); const images=await Promise.all(files.map(file=>new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=reject;reader.readAsDataURL(file)}))); try{await request('/promotion-reports',{method:'POST',body:JSON.stringify({product:f.get('product'),amount:Number(f.get('amount')),description:f.get('description'),confirmed:f.get('confirmed')==='on',images})});setDone(true);setStatus('Xabaringiz yuborildi. Admin tekshirganidan so‘ng balansingiz to‘ldiriladi.')}catch(err){setStatus(err instanceof Error?err.message:'Xatolik yuz berdi')} } return <div className="modal-overlay" onClick={onClose}><div className="modal-card" onClick={e=>e.stopPropagation()}><div className="modal-head"><h2>Aksiya haqida xabar berish</h2><button onClick={onClose}><X size={18}/></button></div>{done?<p className="modal-success">{status}</p>:<form onSubmit={submit}><p>Investitsiya qilganingizni tasdiqlovchi ma’lumot va rasmlarni yuboring.</p><label>Mahsulot<select name="product" defaultValue="prime-capital"><option value="prime-capital">Prime Capital</option><option value="php-invest">PHP Invest</option></select></label><label>Investitsiya summasi ($)<input name="amount" type="number" min="1" required/></label><label>Izoh<textarea name="description" rows={3} required/></label><label>Rasmlar (1–5 ta)<input name="images" type="file" accept="image/*" multiple required/></label><label><input name="confirmed" type="checkbox" required/> Haqiqatan investitsiya qilganimni tasdiqlayman</label><button className="primary" type="submit">Yuborish</button>{status?<small>{status}</small>:null}</form>}</div></div> }
 
 function SupportModal({onClose}:{onClose:()=>void}){
   const { t } = useLang();
