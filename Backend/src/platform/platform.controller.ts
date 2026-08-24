@@ -69,7 +69,7 @@ export class PlatformController {
   @UseGuards(JwtAuthGuard) @Roles('admin') @Patch('videos/:id') updateVideo(@Param('id') id: string, @Body() dto: Partial<ContentDto>) { return this.service.updateContent('videos', id, dto); }
   @UseGuards(JwtAuthGuard) @Roles('admin') @Delete('videos/:id') removeVideo(@Param('id') id: string) { return this.service.removeContent('videos', id); }
 
-  @Get('notifications') notifications() { return this.service.list('notifications'); }
+  @UseGuards(JwtAuthGuard) @Get('notifications') notifications(@Req() req: AuthedRequest) { return this.service.listNotifications(req.user!.sub, req.user!.role === 'admin'); }
   @UseGuards(JwtAuthGuard) @Roles('admin') @Post('notifications') createNotification(@Body() dto: ContentDto) { return this.service.createContent('notifications', dto); }
   @UseGuards(JwtAuthGuard) @Roles('admin') @Patch('notifications/:id') updateNotification(@Param('id') id: string, @Body() dto: Partial<ContentDto>) { return this.service.updateContent('notifications', id, dto); }
   @UseGuards(JwtAuthGuard) @Roles('admin') @Delete('notifications/:id') removeNotification(@Param('id') id: string) { return this.service.removeContent('notifications', id); }
