@@ -45,7 +45,7 @@ export class SupportDto {
   @IsString() message!: string;
 }
 export class StatusDto { @IsIn(['pending', 'approved', 'rejected', 'resolved']) status!: string; }
-export class PromotionReportDto { @IsOptional() @IsNumber() @Min(0) phpInvestAmount?: number; @IsOptional() @IsNumber() @Min(0) primeCapitalAmount?: number; @IsString() @MinLength(5) description!: string; @IsArray() @ArrayMinSize(1) @ArrayMaxSize(5) @IsString({ each: true }) images!: string[]; }
+export class PromotionReportDto { @IsOptional() @IsNumber() @Min(0) phpInvestAmount?: number; @IsOptional() @IsNumber() @Min(0) primeCapitalAmount?: number; @IsString() @MinLength(1) description!: string; @IsArray() @ArrayMinSize(1) @ArrayMaxSize(5) @IsString({ each: true }) images!: string[]; }
 export class UserBalancesDto {
   @IsNumber() @Min(0) phpInvest!: number;
   @IsNumber() @Min(0) primeCapital!: number;
