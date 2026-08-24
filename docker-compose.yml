@@ -37,7 +37,6 @@ services:
     environment:
       API_URL: http://backend:4000/api/v1
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-    ports: ["3001:3001"]
     depends_on: [backend]
     restart: unless-stopped
   website:
