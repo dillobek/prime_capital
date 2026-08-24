@@ -14,7 +14,7 @@ services:
       DATA_FILE: /app/data/platform.json
     volumes:
       - prime_data:/app/data
-    ports: ["4000:4000"]
+    ports: ["127.0.0.1:4100:4000"]
     restart: unless-stopped
   frontend:
     build:
@@ -25,6 +25,7 @@ services:
     environment:
       API_URL: http://backend:4000/api/v1
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    ports: ["127.0.0.1:4101:3000"]
     depends_on: [backend]
     restart: unless-stopped
   webapp:
@@ -36,6 +37,7 @@ services:
     environment:
       API_URL: http://backend:4000/api/v1
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    ports: ["127.0.0.1:4102:3001"]
     depends_on: [backend]
     restart: unless-stopped
   website:
@@ -47,22 +49,8 @@ services:
     environment:
       API_URL: http://backend:4000/api/v1
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    ports: ["127.0.0.1:4103:3002"]
     depends_on: [backend]
     restart: unless-stopped
-  caddy:
-    image: caddy:2-alpine
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on: [backend, frontend, webapp, website]
-    restart: unless-stopped
-
 volumes:
-  caddy_data:
-  caddy_config:
   prime_data:
