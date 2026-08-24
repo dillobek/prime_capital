@@ -10,3 +10,4 @@
 .button-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:10px}
 .button-row input{margin:0}
 .button-row button{border:0;background:#fff0f0;color:#d74444;padding:8px 12px;border-radius:7px}
+.wide-form{width:100%;max-width:none}
