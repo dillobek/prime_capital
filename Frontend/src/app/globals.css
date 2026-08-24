@@ -11,3 +11,6 @@
 .button-row input{margin:0}
 .button-row button{border:0;background:#fff0f0;color:#d74444;padding:8px 12px;border-radius:7px}
 .wide-form{width:100%;max-width:none}
+.list-panel.wide-form{width:100%}
+.list-panel .content-row{width:100%;min-height:150px;align-items:flex-start}
+.list-panel .content-row>div:first-child{min-width:0;flex:1}
