@@ -1,12 +1,13 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { json } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
   // Promotion reports contain compressed image data. The Nest default (100 KB)
   // rejects these reports before the controller can validate them.
-  app.useBodyParser('json', { limit: '10mb' });
+  app.use(json({ limit: '10mb' }));
   app.setGlobalPrefix('api/v1');
   const localOrigins = ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://127.0.0.1:3001'];
   const productionOrigins = (process.env.CORS_ORIGINS ?? 'https://primecapital.uz,https://www.primecapital.uz,https://web.primecapital.uz,https://ser.primecapital.uz')
