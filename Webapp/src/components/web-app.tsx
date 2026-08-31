@@ -6,6 +6,8 @@ import { useLang, LanguageSwitcher } from '@/lib/i18n';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:4000/api/v1';
 const TOKEN_KEY = 'prime_webapp_token';
+const AUTH_EXPIRED_EVENT = 'prime-webapp-auth-expired';
+const BOT_START_URL = 'https://t.me/Prime_capital_bot?start=webapp';
 type Tab='home'|'apartments'|'finance'|'profile';
 type Profile={id:string;name:string;email:string;phone?:string;phpInvest:number;primeCapital:number;photoUrl?:string};
 type FinanceEntry={id:string;type:'income'|'expense';category:string;amount:number;note?:string};
@@ -25,10 +27,20 @@ function myBalances(profile:Profile,productBalances:Balance[]):Balance[]{
 function getToken(){return typeof window==='undefined'?null:localStorage.getItem(TOKEN_KEY)}
 function setToken(token:string){localStorage.setItem(TOKEN_KEY,token)}
 function clearToken(){localStorage.removeItem(TOKEN_KEY)}
+function expireSession(){
+  clearToken();
+  if(typeof window!=='undefined')window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+}
+function tokenHasExpired(token:string){
+  try{
+    const payload=JSON.parse(atob(token.split('.')[1]));
+    return typeof payload.exp==='number' && payload.exp*1000<=Date.now();
+  }catch{return true}
+}
 async function request(path:string,options?:RequestInit){
   const token=getToken();
   const res=await fetch(`${API}${path}`,{...options,headers:{'content-type':'application/json',...(token?{authorization:`Bearer ${token}`}:{}),...(options?.headers??{})}});
-  if(res.status===401){clearToken();throw new Error('unauthorized')}
+  if(res.status===401){if(token)expireSession();throw new Error('unauthorized')}
   if(!res.ok)throw new Error(await res.text().catch(()=>'Xatolik'));
   return res.json();
 }
@@ -38,7 +50,7 @@ function LogoMark({className}:{className?:string}){
     <path fill="#068CEF" d="M45.27 167.44L45.27 3.96C45.27 1.52 42.63 0 40.52 1.22L1.58 23.7C0.6 24.27 0 25.31 0 26.44L0 144.96C0 146.09 0.6 147.13 1.58 147.7L40.52 170.18C42.63 171.4 45.27 169.88 45.27 167.44Z M109.28 77.59L109.28 26.44C109.28 25.31 108.68 24.27 107.7 23.7L68.76 1.22C66.65 0 64.01 1.52 64.01 3.96L64.01 100.07C64.01 102.51 66.65 104.03 68.76 102.81L107.7 80.33C108.68 79.76 109.28 78.72 109.28 77.59Z M64.01 182.04L64.01 130.89C64.01 129.76 64.62 128.72 65.6 128.15L104.53 105.67C106.64 104.45 109.28 105.98 109.28 108.41L109.28 204.52C109.28 206.96 106.64 208.48 104.53 207.26L65.6 184.78C64.62 184.21 64.01 183.17 64.01 182.04Z M128.02 41.04L128.02 204.52C128.02 206.96 130.66 208.48 132.77 207.26L171.71 184.78C172.69 184.21 173.29 183.17 173.29 182.04L173.29 63.52C173.29 62.39 172.69 61.35 171.71 60.78L132.77 38.3C130.66 37.08 128.02 38.6 128.02 41.04Z"/>
   </svg>;
 }
-declare global { interface Window { Telegram?: { WebApp?: { initData?: string; ready?: () => void; expand?: () => void } } } }
+declare global { interface Window { Telegram?: { WebApp?: { initData?: string; ready?: () => void; expand?: () => void; close?: () => void; openTelegramLink?: (url:string) => void } } } }
 /** If opened from the bot's WebApp button, log in silently using Telegram's signed initData — no password screen for bot-registered users. */
 async function loginWithTelegram(){
   const initData=typeof window!=='undefined'?window.Telegram?.WebApp?.initData:undefined;
@@ -50,6 +62,7 @@ export function WebApp({balances,properties,banners,videos}:{balances:Balance[];
   const { t } = useLang();
   const [checking,setChecking]=useState(true);
   const [profile,setProfile]=useState<Profile|null>(null);
+  const [sessionExpired,setSessionExpired]=useState(false);
   const [tab,setTab]=useState<Tab>('home');
   const [modal,setModal]=useState<'invest'|'withdraw'|'support'|'videos'|'promotion'|null>(null);
   const [notifications,setNotifications]=useState<ContentItem[]>([]);
@@ -61,19 +74,30 @@ export function WebApp({balances,properties,banners,videos}:{balances:Balance[];
     window.Telegram?.WebApp?.ready?.();
     window.Telegram?.WebApp?.expand?.();
     let token=getToken();
+    if(token&&tokenHasExpired(token)){
+      expireSession();
+      setChecking(false);
+      return;
+    }
     if(!token && await loginWithTelegram())token=getToken();
     if(!token){setChecking(false);return}
     try{
       const payload=JSON.parse(atob(token.split('.')[1]));
       const user=await request(`/users/${payload.sub}`);
       setProfile(user);
-    }catch{clearToken();setProfile(null)}
+    }catch{expireSession();setProfile(null)}
     setChecking(false);
   }
-  useEffect(()=>{loadProfile()},[]);
+  useEffect(()=>{
+    const handleExpired=()=>{setProfile(null);setSessionExpired(true);setChecking(false)};
+    window.addEventListener(AUTH_EXPIRED_EVENT,handleExpired);
+    return()=>window.removeEventListener(AUTH_EXPIRED_EVENT,handleExpired);
+  },[]);
+  useEffect(()=>{void Promise.resolve().then(loadProfile)},[]);
   useEffect(()=>{if(profile)request('/notifications').then(setNotifications).catch(()=>setNotifications([]))},[profile]);
 
   if(checking)return <div className="webapp"/>;
+  if(sessionExpired)return <SessionExpiredScreen/>;
   if(!profile)return <AuthScreen onSuccess={()=>{setChecking(true);loadProfile()}}/>;
 
   return <div className="webapp"><header className="top"><div className="logo"><LogoMark className="logo-mark"/><span><b>PRIME</b><small>CAPITAL</small></span></div><button aria-label={t('wa.notifications.title')} onClick={()=>setShowNotifications(x=>!x)}><Bell/>{notifications.length?<em/>:null}</button></header>
@@ -90,6 +114,24 @@ export function WebApp({balances,properties,banners,videos}:{balances:Balance[];
   {modal==='videos'?<VideosModal items={videos} onClose={()=>setModal(null)}/>:null}
   {modal==='promotion'?<PromotionModal onClose={()=>setModal(null)}/>:null}
   </div>
+}
+
+function SessionExpiredScreen(){
+  function returnToBot(){
+    const telegram=window.Telegram?.WebApp;
+    if(telegram?.openTelegramLink){
+      telegram.openTelegramLink(BOT_START_URL);
+      window.setTimeout(()=>telegram.close?.(),150);
+      return;
+    }
+    window.location.assign(BOT_START_URL);
+  }
+  return <div className="auth-screen"><section className="session-expired-card" role="alert">
+    <div className="session-expired-icon">↻</div>
+    <h1>Seans muddati tugadi</h1>
+    <p>Xavfsizlik uchun WebApp seansi yangilanadi. Prime Capital botiga qaytib, <b>/start</b> tugmasini bosing.</p>
+    <button className="primary" type="button" onClick={returnToBot}>Botga qaytish</button>
+  </section></div>
 }
 
 function NotificationsPanel({items,onClose}:{items:ContentItem[];onClose:()=>void}){
