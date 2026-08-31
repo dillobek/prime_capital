@@ -1,6 +1,6 @@
 'use client';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Bell, Building2, CircleDollarSign, CircleUserRound, Headphones, Home, Landmark, MapPin, PlayCircle, PlusCircle, WalletCards, X } from 'lucide-react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { Bell, Building2, Camera, CircleDollarSign, CircleUserRound, Headphones, Home, ImagePlus, Landmark, MapPin, PlayCircle, PlusCircle, WalletCards, X } from 'lucide-react';
 import type { Balance, PropertyListing } from '@prime/contracts';
 import { useLang, LanguageSwitcher } from '@/lib/i18n';
 
@@ -273,8 +273,63 @@ function MoneyModal({title,action,onClose}:{title:string;action:'investments'|'w
   </div></div>
 }
 
-function compressImage(file:File):Promise<string>{return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=reject;reader.onload=()=>{const image=new Image();image.onerror=reject;image.onload=()=>{const canvas=document.createElement('canvas');const scale=Math.min(1,1600/Math.max(image.width,image.height));canvas.width=Math.round(image.width*scale);canvas.height=Math.round(image.height*scale);canvas.getContext('2d')?.drawImage(image,0,0,canvas.width,canvas.height);let quality=0.82;const encode=()=>{const data=canvas.toDataURL('image/jpeg',quality);if(data.length<=2.7e6||quality<=0.45)return resolve(data);quality-=0.08;encode()};encode()};image.src=String(reader.result)};reader.readAsDataURL(file)})}
-function PromotionModal({onClose}:{onClose:()=>void}){ const [status,setStatus]=useState(''); const [done,setDone]=useState(false); async function submit(e:FormEvent<HTMLFormElement>){ e.preventDefault(); const f=new FormData(e.currentTarget); const files=f.getAll('images').filter((value): value is File=>value instanceof File&&value.size>0); if(files.length<1||files.length>5){setStatus('1 dan 5 tagacha rasm tanlang');return;} const phpInvestAmount=Number(f.get('phpInvestAmount')||0), primeCapitalAmount=Number(f.get('primeCapitalAmount')||0); if(phpInvestAmount<=0&&primeCapitalAmount<=0){setStatus('PHP Invest yoki Prime Capital summasini kiriting');return;} setStatus('Rasmlar tayyorlanmoqda…'); const images=await Promise.all(files.map(compressImage)); try{await request('/promotion-reports',{method:'POST',body:JSON.stringify({phpInvestAmount,primeCapitalAmount,description:f.get('description'),images})});setDone(true);setStatus('Xabaringiz yuborildi. Admin tekshirganidan so‘ng balansingiz to‘ldiriladi.')}catch(err){setStatus(err instanceof Error?err.message:'Xatolik yuz berdi')} } return <div className="modal-overlay" onClick={onClose}><div className="modal-card" onClick={e=>e.stopPropagation()}><div className="modal-head"><h2>Investitsiya haqida xabar berish</h2><button onClick={onClose}><X size={18}/></button></div>{done?<p className="modal-success">{status}</p>:<form onSubmit={submit}><p>Investitsiya summalarini kiriting va tasdiqlovchi rasmlarni yuboring.</p><label>PHP Invest summasi ($)<input name="phpInvestAmount" type="number" min="0" step="0.01" placeholder="0"/></label><label>Prime Capital summasi ($)<input name="primeCapitalAmount" type="number" min="0" step="0.01" placeholder="0"/></label><label>Izoh<textarea name="description" rows={3} required/></label><label>Rasmlar (1–5 ta, har biri 2MB gacha)<input name="images" type="file" accept="image/*" multiple required/></label><button className="primary" type="submit">Yuborish</button>{status?<small>{status}</small>:null}</form>}</div></div> }
+function compressImage(file:File):Promise<string>{return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=reject;reader.onload=()=>{const image=new Image();image.onerror=reject;image.onload=()=>{const canvas=document.createElement('canvas');const scale=Math.min(1,1600/Math.max(image.width,image.height));canvas.width=Math.round(image.width*scale);canvas.height=Math.round(image.height*scale);canvas.getContext('2d')?.drawImage(image,0,0,canvas.width,canvas.height);let quality=0.82;const encode=()=>{const data=canvas.toDataURL('image/jpeg',quality);if(data.length<=1.5e6||quality<=0.45)return resolve(data);quality-=0.08;encode()};encode()};image.src=String(reader.result)};reader.readAsDataURL(file)})}
+type SelectedPromotionImage={file:File;previewUrl:string};
+function PromotionModal({onClose}:{onClose:()=>void}){
+  const [status,setStatus]=useState('');
+  const [done,setDone]=useState(false);
+  const [images,setImages]=useState<SelectedPromotionImage[]>([]);
+  const imageRef=useRef<SelectedPromotionImage[]>([]);
+  const galleryInputRef=useRef<HTMLInputElement>(null);
+  const cameraInputRef=useRef<HTMLInputElement>(null);
+  useEffect(()=>{imageRef.current=images},[images]);
+  useEffect(()=>()=>{imageRef.current.forEach(image=>URL.revokeObjectURL(image.previewUrl))},[]);
+
+  function addImages(event:ChangeEvent<HTMLInputElement>){
+    const files=Array.from(event.target.files??[]);
+    event.target.value='';
+    const available=5-images.length;
+    if(!files.length)return;
+    const valid=files.filter(file=>file.type.startsWith('image/')&&file.size<=12*1024*1024).slice(0,available);
+    if(!valid.length){setStatus('JPG yoki PNG formatdagi, 12 MB gacha bo‘lgan rasmni tanlang');return;}
+    if(valid.length<files.length)setStatus(available?`Faqat ${available} ta rasm qo‘shildi (jami 5 ta mumkin)`:'5 ta rasm tanlangan');
+    else setStatus('');
+    setImages(current=>[...current,...valid.map(file=>({file,previewUrl:URL.createObjectURL(file)}))]);
+  }
+  function removeImage(previewUrl:string){
+    setImages(current=>{
+      const removed=current.find(image=>image.previewUrl===previewUrl);
+      if(removed)URL.revokeObjectURL(removed.previewUrl);
+      return current.filter(image=>image.previewUrl!==previewUrl);
+    });
+  }
+  async function submit(e:FormEvent<HTMLFormElement>){
+    e.preventDefault();
+    const f=new FormData(e.currentTarget);
+    if(!images.length){setStatus('Tasdiqlovchi rasmni qo‘shing');return;}
+    const phpInvestAmount=Number(f.get('phpInvestAmount')||0), primeCapitalAmount=Number(f.get('primeCapitalAmount')||0);
+    if(phpInvestAmount<=0&&primeCapitalAmount<=0){setStatus('PHP Invest yoki Prime Capital summasini kiriting');return;}
+    setStatus('Rasmlar tayyorlanmoqda…');
+    const compressedImages=await Promise.all(images.map(image=>compressImage(image.file)));
+    const description=String(f.get('description')??'').trim();
+    try{
+      await request('/promotion-reports',{method:'POST',body:JSON.stringify({phpInvestAmount,primeCapitalAmount,description:description||undefined,images:compressedImages})});
+      setDone(true);
+      setStatus('Xabaringiz yuborildi. Admin tekshirganidan so‘ng balansingiz to‘ldiriladi.');
+    }catch(err){setStatus(err instanceof Error?err.message:'Xatolik yuz berdi')}
+  }
+  return <div className="modal-overlay" onClick={onClose}><div className="modal-card promotion-modal" onClick={e=>e.stopPropagation()}>
+    <div className="modal-head"><div><h2>Investitsiya haqida xabar berish</h2><p>Tasdiqlash uchun rasm qo‘shing.</p></div><button aria-label="Yopish" onClick={onClose}><X size={18}/></button></div>
+    {done?<p className="modal-success">{status}</p>:<form onSubmit={submit}>
+      <div className="promotion-amounts"><label>PHP Invest ($)<input name="phpInvestAmount" type="number" min="0" step="0.01" placeholder="0"/></label><label>Prime Capital ($)<input name="primeCapitalAmount" type="number" min="0" step="0.01" placeholder="0"/></label></div>
+      <label>Izoh <span className="field-optional">(ixtiyoriy)</span><textarea name="description" rows={3} placeholder="Qisqacha izoh yozing..."/></label>
+      <div className="promotion-attachments"><div><strong>Rasmlar</strong><span>1–5 ta rasm. Katta rasm avtomatik kichraytiriladi.</span></div><div className="promotion-attachment-actions"><button type="button" onClick={()=>cameraInputRef.current?.click()}><Camera size={18}/> Kameradan</button><button type="button" className="gallery-button" onClick={()=>galleryInputRef.current?.click()}><ImagePlus size={18}/> Rasm qo‘shish</button></div></div>
+      <input ref={cameraInputRef} className="sr-only" type="file" accept="image/*" capture="environment" onChange={addImages}/><input ref={galleryInputRef} className="sr-only" type="file" accept="image/*" multiple onChange={addImages}/>
+      {images.length?<div className="promotion-preview-grid">{images.map(image=><figure key={image.previewUrl}><img src={image.previewUrl} alt="Tanlangan rasm"/><button type="button" aria-label="Rasmni olib tashlash" onClick={()=>removeImage(image.previewUrl)}><X size={16}/></button></figure>)}</div>:<div className="promotion-empty-preview"><ImagePlus size={22}/><span>Hali rasm tanlanmagan</span></div>}
+      <button className="primary" type="submit">Yuborish</button>{status?<small className="promotion-status">{status}</small>:null}
+    </form>}
+  </div></div>
+}
 
 function SupportModal({onClose}:{onClose:()=>void}){
   const { t } = useLang();
