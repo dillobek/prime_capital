@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { compare, hash, hashSync } from 'bcryptjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { normalizeUzPhone } from '../common/phone.util';
 import { AboutDto, ChangeCredentialsDto, ContentDto, FinanceEntryDto, LoginDto, MoneyRequestDto, PromotionReportDto, RegisterDto, SupportDto, UserBalancesDto } from './platform.dto';
 
 type RecordItem = Record<string, unknown> & { id: string; createdAt: string; status?: string };
@@ -88,15 +89,18 @@ export class PlatformService {
     return this.session(user);
   }
   registerTelegramUser(input: { telegramId: string; name: string; phone: string; username?: string }) {
-    const existing = this.users.find((item) => item.telegramId === input.telegramId);
+    // Normalized so it matches whatever shape a Mobile OTP login sends later — the bot's own
+    // contact-share validation (telegram.service.ts) is much looser than +998XXXXXXXXX.
+    const normalized = { ...input, phone: normalizeUzPhone(input.phone) || input.phone };
+    const existing = this.users.find((item) => item.telegramId === normalized.telegramId);
     if (existing) {
-      Object.assign(existing, input, { status: 'active' });
+      Object.assign(existing, normalized, { status: 'active' });
       this.save();
       return this.profile(existing.id);
     }
     const user: RecordItem = {
       id: id(),
-      ...input,
+      ...normalized,
       role: 'user',
       status: 'active',
       phpInvest: 0,
@@ -115,6 +119,28 @@ export class PlatformService {
   loginTelegram(telegramId: string) {
     const user = this.users.find((item) => item.telegramId === telegramId);
     if (!user) throw new UnauthorizedException('Avval Telegram bot orqali ro‘yxatdan o‘ting (/start)');
+    return this.session(user);
+  }
+  /**
+   * Phone+OTP login (Mobile app) — matched by normalized phone so a user who
+   * registered through the Telegram bot (possibly with a loosely-formatted
+   * phone) can still log in outside Telegram with the same number.
+   */
+  hasUserWithPhone(normalizedPhone: string) {
+    return this.users.some((item) => normalizeUzPhone(String(item.phone ?? '')) === normalizedPhone);
+  }
+  loginByPhone(normalizedPhone: string) {
+    const user = this.users.find((item) => normalizeUzPhone(String(item.phone ?? '')) === normalizedPhone);
+    if (!user) throw new UnauthorizedException('Foydalanuvchi topilmadi');
+    return this.session(user);
+  }
+  /** Creates a phone-only account (no email/password) after OtpService has verified the code — idempotent if the phone was registered in the meantime. */
+  registerByPhone(normalizedPhone: string, name: string) {
+    const existing = this.users.find((item) => normalizeUzPhone(String(item.phone ?? '')) === normalizedPhone);
+    if (existing) return this.session(existing);
+    const user: RecordItem = { id: id(), name, phone: normalizedPhone, role: 'user', phpInvest: 0, primeCapital: 0, status: 'active', createdAt: now() };
+    this.users.push(user);
+    this.save();
     return this.session(user);
   }
   updateTelegramPhoto(telegramId: string, photoUrl: string) {

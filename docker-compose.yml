@@ -11,6 +11,10 @@ services:
       TELEGRAM_WEBAPP_URL: ${TELEGRAM_WEBAPP_URL:-https://web.primecapital.uz}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ESKIZ_EMAIL: ${ESKIZ_EMAIL:-}
+      ESKIZ_PASSWORD: ${ESKIZ_PASSWORD:-}
+      ESKIZ_FROM: ${ESKIZ_FROM:-4546}
+      ESKIZ_OTP_TEMPLATE: "${ESKIZ_OTP_TEMPLATE:-Prime Capital ilovasiga kirish uchun bir martalik kod: {code} KODNI HECH KIMGA BERMANG.}"
       DATA_FILE: /app/data/platform.json
     volumes:
       - prime_data:/app/data

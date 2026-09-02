@@ -3,7 +3,8 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { ROLES_KEY } from './roles.decorator';
 
-export type AuthedUser = { sub: string; role: string; email: string };
+// email is absent for phone-only accounts (Mobile OTP login / Telegram bot registration — see PlatformService.registerByPhone).
+export type AuthedUser = { sub: string; role: string; email?: string };
 // Minimal shape we rely on — avoids depending on @types/express, which isn't a project dependency.
 export type AuthedRequest = { headers: Record<string, string | undefined>; user?: AuthedUser };
 
